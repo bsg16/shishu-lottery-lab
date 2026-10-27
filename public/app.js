@@ -1,11 +1,12 @@
 import { GAMES, pad, choose, generatePlan, planTotals, ticketText, ticketKey, statistics, checkEntry, validateEntry, validateDraw, canonicalIssue, mergeDraws } from './domain.js';
 import { setupCloudSync } from './sync-ui.js';
+import { setupRules } from './rules.js';
 const $ = id => document.getElementById(id);
 const all = selector => [...document.querySelectorAll(selector)];
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE = 'shishu.plans.v1', CACHE = 'shishu.draws.v1';
 let game = 'ssq', mode = 'single', view = 'generate', data, currentPlan, saved = [], historyLimit = 20;
-let activeEntry, manualCheck = false, toastTimer, cloud;
+let activeEntry, manualCheck = false, toastTimer, cloud, rules;
 const fetchedState = {}, loading = new Set();
 const strategyNames = {random:'随机选号',hot:'热号参考',cold:'冷号参考',overdue:'遗漏参考'};
 const rankNames = ['','一等奖','二等奖','三等奖','四等奖','五等奖','六等奖','七等奖','八等奖','九等奖'];
@@ -81,16 +82,16 @@ function setGame(next) {
   const changed=next!==game;game=next;
   if(changed){$('main-size').value=game==='ssq'?7:6;$('extra-size').value=game==='ssq'?2:3;$('additional').checked=false;$('target-issue').value='';historyLimit=20;}
   all('[data-game]').forEach(b=>{b.classList.toggle('active',b.dataset.game===game);b.setAttribute('aria-pressed',b.dataset.game===game);});
-  renderConfig();renderLatest();renderHistory();
+  renderConfig();renderLatest();renderHistory();rules?.render(game);
   if(changed && currentPlan)generate();
   if(!fetchedState[game])refreshData(game);
 }
 function setView(next) {
-  if(!['generate','saved','history'].includes(next))next='generate';view=next;
+  if(!['generate','saved','history','rules'].includes(next))next='generate';view=next;
   all('.view-section').forEach(el=>el.hidden=el.id!==`view-${next}`);
   all('nav [data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===next);if(b.dataset.view===next)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   if(location.hash!==`#${next}`)history.replaceState(null,'',`#${next}`);
-  if(next==='saved')renderSaved();if(next==='history')renderHistory();
+  if(next==='saved')renderSaved();if(next==='history')renderHistory();if(next==='rules')rules?.render(game);
   window.scrollTo(0,0);
 }
 function renderLatest() {
@@ -205,6 +206,11 @@ function wire() {
   $('check-issue').addEventListener('change',()=>{renderCheckPreview();$('check-result').innerHTML='';});
   ['manual-issue','manual-main','manual-extra'].forEach(id=>$(id).addEventListener('input',()=>$('check-result').innerHTML=''));
   $('check-form').addEventListener('submit',e=>{e.preventDefault();performCheck();});
+  $('check-rules').addEventListener('click',()=>{
+    if(!activeEntry)return;
+    const issue=manualCheck?$('manual-issue').value:$('check-issue').value;
+    $('check-dialog').close();setGame(activeEntry.game);rules.selectIssue(activeEntry.game,issue);setView('rules');
+  });
   ['about-button','footer-about'].forEach(id=>$(id).addEventListener('click',()=>$('about-dialog').showModal()));
   window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
   window.addEventListener('storage',event=>{if(event.key===STORE){readSaved();renderSaved();}});
@@ -213,7 +219,7 @@ async function init() {
   try {
     const response=await fetch('/history.json');if(!response.ok)throw new Error();data=await response.json();
     try{const cached=JSON.parse(localStorage.getItem(CACHE)||'{}');for(const which of Object.keys(GAMES))if(Array.isArray(cached[which]))data.games[which].draws=mergeDraws(which,data.games[which].draws,cached[which]);}catch{}
-    readSaved();wire();renderConfig();renderSaved();renderLatest();renderHistory();generate();setView(location.hash.slice(1)||'generate');refreshData();
+    rules=setupRules();readSaved();wire();renderConfig();renderSaved();renderLatest();renderHistory();generate();setView(location.hash.slice(1)||'generate');refreshData();
     cloud=setupCloudSync({getEntries:()=>saved,onEntries:entries=>{saved=entries;try{localStorage.setItem(STORE,JSON.stringify(saved));}catch{}renderSaved();},notify:toast});
   }catch{errorAt('page-error','历史数据未能加载，请刷新页面重试。');$('generate-button').disabled=true;$('results').innerHTML='<div class="loading">数据加载失败</div>';}
 }

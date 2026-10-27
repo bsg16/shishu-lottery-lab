@@ -24,7 +24,7 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (url.pathname === '/api/vault') return vaultRequest(request,env);
     if (request.method !== 'GET') return responseJSON({error:'仅支持查询'},405);
-    if (url.pathname === '/api/health') return responseJSON({ok:true,version:'1.1.0'});
+    if (url.pathname === '/api/health') return responseJSON({ok:true,version:'1.2.0'});
     if (url.pathname !== '/api/draws') return responseJSON({error:'未找到'},404);
     const game = url.searchParams.get('game');
     if (!Object.hasOwn(PROVIDERS,game)) return responseJSON({error:'彩种不支持'},400);

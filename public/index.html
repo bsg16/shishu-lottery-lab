@@ -17,6 +17,7 @@
       <button data-view="generate" class="nav-button active" aria-current="page">选号实验室</button>
       <button data-view="saved" class="nav-button">我的号码 <span id="saved-count" class="count-badge">0</span></button>
       <button data-view="history" class="nav-button">开奖数据</button>
+      <button data-view="rules" class="nav-button">中奖规则</button>
     </nav>
     <button id="about-button" class="quiet-button header-about">关于数据 <span aria-hidden="true">↗</span></button>
   </header>
@@ -39,7 +40,7 @@
     <div id="page-error" class="error-box" role="alert" hidden></div>
 
     <section id="view-generate" class="view-section">
-      <div class="section-toolbar"><div class="game-switch" role="group" aria-label="选择彩种"><button data-game="ssq" class="active" aria-pressed="true">双色球 <span>6 + 1</span></button><button data-game="dlt" aria-pressed="false">大乐透 <span>5 + 2</span></button></div><span class="muted toolbar-note">常规奖项 · 不计特别奖与派奖</span></div>
+      <div class="section-toolbar"><div class="game-switch" role="group" aria-label="选择彩种"><button data-game="ssq" class="active" aria-pressed="true">双色球 <span>6 + 1</span></button><button data-game="dlt" aria-pressed="false">大乐透 <span>5 + 2</span></button></div><div class="rules-shortcut"><span class="muted toolbar-note">常规奖项 · 不计特别奖与派奖</span><button data-view="rules" class="text-button">中奖规则 ↗</button></div></div>
       <div class="workspace">
         <section class="panel settings-panel" aria-labelledby="settings-title">
           <div class="panel-heading"><span class="step-tag">01</span><h2 id="settings-title">设定你的方案</h2></div>
@@ -86,6 +87,28 @@
       <div class="history-bottom-grid"><section class="panel history-panel"><h3>近五年策略回测</h3><p id="study-range" class="muted"></p><div class="table-wrap"><table><thead><tr><th>策略</th><th>平均命中数</th><th>随机期望</th></tr></thead><tbody id="study-table"></tbody></table></div><p class="fine-print">每期生成一注，两区命中数相加；14项检验统一校正。未达到显著阈值，不代表排除了所有可能的微小优势。</p></section><section class="panel history-panel probability-card"><h3>单注概率，心里有底</h3><p>2元基本投注 · 仅常规奖项</p><div><span>一等奖</span><strong id="single-jackpot">—</strong></div><div><span>任意常规奖</span><strong id="single-any">—</strong></div><p class="fine-print">中奖与回本是两件事。复式与不同号码可以增加覆盖，同时也增加成本。</p></section></div>
       <section class="panel history-panel"><div class="panel-toolbar"><h3>最近开奖记录</h3><span id="history-source" class="muted"></span></div><div class="table-wrap"><table class="draw-table"><thead><tr><th>期号 / 日期</th><th>开奖号码</th></tr></thead><tbody id="history-table"></tbody></table></div><button id="history-more" class="quiet-button full-width">再看20期 ↓</button></section>
     </section>
+    <section id="view-rules" class="view-section" hidden>
+      <div class="section-title"><div><div class="eyebrow subtle">KNOW YOUR MATCH</div><h2>中了几个，算几等奖</h2><p class="muted">双色球与大乐透常规奖级对照，不计福运奖、特别奖和派奖。</p></div><div class="game-switch" role="group" aria-label="规则彩种"><button data-game="ssq" class="active" aria-pressed="true">双色球</button><button data-game="dlt" aria-pressed="false">大乐透</button></div></div>
+      <div class="rules-layout">
+        <section class="panel rules-table-panel" aria-labelledby="rules-caption">
+          <div class="rules-table-heading"><h3 id="rules-caption"></h3><label id="rules-period-wrap" hidden><span class="visually-hidden">大乐透规则版本</span><select id="rules-period"><option value="current">现行规则 · 第26014期起</option><option value="historical">历史规则 · 第21123–26013期</option></select></label></div>
+          <p id="rules-legend" class="rules-description"></p>
+          <div class="table-wrap"><table class="rules-table"><caption class="visually-hidden">每注基本投注的命中条件与税前奖金</caption><thead id="rules-table-head"></thead><tbody id="rules-table-body"></tbody></table></div>
+          <p id="rules-pool-note" class="rules-description field-space" hidden>三至七等奖按当期适用的奖池档位计奖，8亿元整属于高档。这里同时列出两档，不用页面上开奖后的奖池余额推算当期奖金。</p>
+          <p class="fine-print">金额为每注基本投注的税前规则金额；浮动奖金及限额赔付等调整，以对应期开奖公告为准。每注只计最高常规奖级。</p>
+          <div class="rules-source"><span>规则核对：2026-10-27</span><a id="rules-source" target="_blank" rel="noopener"></a></div>
+        </section>
+        <aside class="rules-side">
+          <section class="panel rules-lookup" aria-labelledby="rules-lookup-title">
+            <div class="eyebrow subtle">TRY A COMBINATION</div><h3 id="rules-lookup-title">试一试命中情况</h3><p class="rules-description">选择一注基本组合实际命中的个数。</p>
+            <div class="two-fields field-space"><div><label id="rules-main-label" class="field-label" for="rules-main">红球命中个数</label><select id="rules-main"></select></div><div><label id="rules-extra-label" class="field-label" for="rules-extra">蓝球命中个数</label><select id="rules-extra"></select></div></div>
+            <div id="rules-match-result" class="rule-match-result" role="status"><strong id="rules-match-title"></strong><p id="rules-match-detail"></p></div>
+            <p class="fine-print">复式方案请到“我的号码”逐注核对，不能用整组选中号码的总命中数直接套表。</p><button data-view="saved" class="text-button field-space">去核对已保存的号码 →</button>
+          </section>
+          <section class="panel rules-explainer"><h3 id="rules-additional-title"></h3><p id="rules-additional-note"></p><h3>复式与倍投</h3><p id="rules-example"></p><p>倍投是重复购买相同组合，成本与对应中奖注数按倍数计算；不会增加这组号码被开出的概率。</p></section>
+        </aside>
+      </div>
+    </section>
   </main>
 
   <footer><a class="footer-brand" href="#generate">拾数 <span>LOTTERY LAB</span></a><p>参考选号 · 数据研究 · 常规奖核对<br>开奖独立随机，本站不承诺预测准确率，也不提供购彩服务。</p><button class="text-button" id="footer-about">数据来源与规则 ↗</button></footer>
@@ -120,6 +143,7 @@
       <button type="submit" class="button button-dark full-width field-space">核对中奖情况 →</button><div id="check-error" class="inline-error" role="alert" hidden></div>
     </form>
     <div id="check-result" aria-live="polite"></div>
+    <button id="check-rules" class="text-button field-space">查看该彩种中奖规则 ↗</button>
     <p class="fine-print">只核对常规奖级，不计福运奖或派奖。大乐透追加仅影响一、二等奖；奖金及兑奖以官方公告为准。</p>
   </dialog>
 
