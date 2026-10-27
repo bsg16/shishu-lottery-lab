@@ -1,0 +1,14 @@
+{
+  "name": "shishu-lottery-lab",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-data.mjs",
+    "dev": "wrangler dev --port 8787",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node --test tests/sync.integration.js",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": { "wrangler": "4.153.0" }
+}

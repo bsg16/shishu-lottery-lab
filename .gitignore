@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.env*
+.dev.vars*
+__pycache__/
+*.log
+.DS_Store
+number.txt
+artifacts/
+data/*.html

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f5f1">
+  <meta name="description" content="拾数：双色球与大乐透参考选号、复式计算、号码保存与开奖核对。以公开开奖数据为依据，不承诺预测优势。">
+  <title>拾数 · 彩票选号实验室</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#generate" aria-label="拾数首页"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>拾数<small>LOTTERY LAB</small></span></a>
+    <nav aria-label="主导航">
+      <button data-view="generate" class="nav-button active" aria-current="page">选号实验室</button>
+      <button data-view="saved" class="nav-button">我的号码 <span id="saved-count" class="count-badge">0</span></button>
+      <button data-view="history" class="nav-button">开奖数据</button>
+    </nav>
+    <button id="about-button" class="quiet-button header-about">关于数据 <span aria-hidden="true">↗</span></button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span class="tiny-dot"></span> 一点理性，一点期待</div>
+        <h1>每一注，<br>都<span>心中有数。</span></h1>
+        <p>从参考选号到开奖核对，<br class="mobile-only">把你的每一次选择，好好记下来。</p>
+      </div>
+      <aside class="latest-card" aria-label="最近收录的开奖结果">
+        <div class="latest-heading"><span><i class="live-dot"></i> 最近收录开奖</span><span id="latest-game">双色球</span></div>
+        <div class="latest-issue"><strong id="latest-issue">正在读取</strong><span id="latest-date">—</span></div>
+        <div class="ball-row" id="latest-balls" aria-live="polite"></div>
+        <div class="latest-bottom"><span id="data-state">正在载入历史数据…</span><button id="refresh-button" class="text-button">刷新数据 ↻</button></div>
+      </aside>
+    </section>
+
+    <div id="page-error" class="error-box" role="alert" hidden></div>
+
+    <section id="view-generate" class="view-section">
+      <div class="section-toolbar"><div class="game-switch" role="group" aria-label="选择彩种"><button data-game="ssq" class="active" aria-pressed="true">双色球 <span>6 + 1</span></button><button data-game="dlt" aria-pressed="false">大乐透 <span>5 + 2</span></button></div><span class="muted toolbar-note">常规奖项 · 不计特别奖与派奖</span></div>
+      <div class="workspace">
+        <section class="panel settings-panel" aria-labelledby="settings-title">
+          <div class="panel-heading"><span class="step-tag">01</span><h2 id="settings-title">设定你的方案</h2></div>
+          <form id="generate-form">
+            <label class="field-label" for="strategy">选号方式</label>
+            <select id="strategy"><option value="random">随机选号</option><option value="hot">热号参考 · 近50期</option><option value="cold">冷号参考 · 近50期</option><option value="overdue">遗漏参考 · 近50期</option></select>
+            <p id="strategy-description" class="field-hint">每个号码均匀抽取，整组号码自动去重。</p>
+
+            <label class="field-label">投注形式</label>
+            <div class="segmented" role="group" aria-label="投注形式"><button type="button" data-mode="single" class="active" aria-pressed="true">单式多注</button><button type="button" data-mode="compound" aria-pressed="false">复式选号</button></div>
+            <div id="single-inputs" class="field-space"><label class="field-label" for="ticket-count">生成注数 <span>1–50 注</span></label><input id="ticket-count" type="number" min="1" max="50" value="10" inputmode="numeric" required></div>
+            <div id="compound-inputs" class="two-fields field-space" hidden><div><label class="field-label" id="main-size-label" for="main-size">红球数量</label><input id="main-size" type="number" min="6" max="33" value="7" inputmode="numeric"></div><div><label class="field-label" id="extra-size-label" for="extra-size">蓝球数量</label><input id="extra-size" type="number" min="1" max="16" value="2" inputmode="numeric"></div></div>
+            <div class="field-space"><label class="field-label" for="multiplier">投注倍数 <span>1–99 倍</span></label><input id="multiplier" type="number" min="1" max="99" value="1" inputmode="numeric" required></div>
+            <label id="additional-wrap" class="check-label" hidden><input id="additional" type="checkbox"><span>大乐透追加 <small>每基本注增加 1 元</small></span></label>
+            <label id="spread-wrap" class="check-label"><input id="spread" type="checkbox" checked><span id="spread-label">尽量分散蓝球 <small>优先覆盖不同蓝球号码</small></span></label>
+
+            <div class="plan-summary"><div><span>方案金额</span><strong id="plan-cost">¥20<small>.00</small></strong></div><p id="plan-detail">10 注 × 2 元 × 1 倍</p><div class="probability-line"><span>一等奖命中概率</span><span id="plan-probability">约 177 万分之一</span></div></div>
+            <button type="submit" id="generate-button" class="button button-coral full-width"><span aria-hidden="true">✦</span> 生成参考号码 <span aria-hidden="true">→</span></button>
+            <div id="form-error" class="inline-error" role="alert" hidden></div>
+            <p class="fine-print">倍数和追加不增加同一组合的命中概率。</p>
+          </form>
+        </section>
+
+        <section class="panel result-panel" aria-labelledby="result-title">
+          <div class="result-heading"><div><div class="eyebrow subtle">YOUR NEXT COMBINATION</div><h2 id="result-title">本次参考号码 <span id="result-tag" class="soft-tag">10 注单式</span></h2></div><button id="copy-all" class="quiet-button">复制全部 ↗</button></div>
+          <div id="generation-meta" class="result-meta">随机选号 · 双色球 · 不追加</div>
+          <div id="results" class="ticket-list" aria-live="polite"><div class="loading">正在准备号码…</div></div>
+          <div class="result-actions"><label class="save-target"><span>目标期号 <span class="muted">选填</span></span><input id="target-issue" type="text" inputmode="numeric" maxlength="7" placeholder="开奖后也可以选择期号"></label><button id="save-plan" class="button button-dark">保存本组号码 <span aria-hidden="true">＋</span></button></div>
+          <div class="result-foot"><span class="tiny-dot"></span> 历史加权只是选号偏好，没有已验证的预测优势。</div>
+        </section>
+      </div>
+      <div class="research-strip"><div class="research-symbol" aria-hidden="true">∑</div><div><h3>看得见历史，也理解随机</h3><p>五年数据回测中，热号、冷号和遗漏策略均未显示显著优势。保存方案、对照结果，让直觉经得起记录。</p></div><button class="text-button" data-view="history">看看历史数据 ↗</button></div>
+    </section>
+
+    <section id="view-saved" class="view-section" hidden>
+      <div class="section-title"><div><div class="eyebrow subtle">YOUR COLLECTION</div><h2>我的号码</h2><p class="muted">本机随时保存，启用私人同步码后可在不同设备恢复。</p></div><div class="button-group"><button id="export-saved" class="button button-outline">导出备份 ↓</button><label class="button button-outline file-label">导入备份 ↑<input id="import-saved" type="file" accept=".json,application/json" class="visually-hidden"></label></div></div>
+      <div class="cloud-bar panel"><div><strong>你的私人云端号码库</strong><p id="cloud-status" role="status">仅保存在本机 · 可启用云端同步</p></div><div class="button-group"><button id="cloud-now" class="button button-outline" disabled>立即同步 ↻</button><button id="cloud-manage" class="button button-dark">启用云端同步 ↗</button></div></div>
+      <div id="saved-list"></div>
+    </section>
+
+    <section id="view-history" class="view-section" hidden>
+      <div class="section-title"><div><div class="eyebrow subtle">A LITTLE MORE CONTEXT</div><h2>号码背后的数据</h2><p class="muted">统计描述已经发生的开奖，不代表下一期走势。</p></div><div class="game-switch" role="group" aria-label="数据彩种"><button data-game="ssq" class="active" aria-pressed="true">双色球</button><button data-game="dlt" aria-pressed="false">大乐透</button></div></div>
+      <section class="panel history-panel"><div class="panel-toolbar"><div><h3>号码出现频次</h3><p id="frequency-caption" class="muted"></p></div><div class="button-group"><select id="frequency-zone" aria-label="号码区域"><option value="main">红球</option><option value="extra">蓝球</option></select><select id="frequency-window" aria-label="样本范围"><option value="50">最近50期</option><option value="100">最近100期</option><option value="all">已收录全部</option></select></div></div><div id="frequency-grid" class="frequency-grid"></div><p class="legend">颜色越深，样本内出现次数越多。号码下方为出现次数；点击可看当前遗漏。</p><div id="frequency-detail" class="frequency-detail" aria-live="polite">选择一个号码查看详情。</div></section>
+      <div class="history-bottom-grid"><section class="panel history-panel"><h3>近五年策略回测</h3><p id="study-range" class="muted"></p><div class="table-wrap"><table><thead><tr><th>策略</th><th>平均命中数</th><th>随机期望</th></tr></thead><tbody id="study-table"></tbody></table></div><p class="fine-print">每期生成一注，两区命中数相加；14项检验统一校正。未达到显著阈值，不代表排除了所有可能的微小优势。</p></section><section class="panel history-panel probability-card"><h3>单注概率，心里有底</h3><p>2元基本投注 · 仅常规奖项</p><div><span>一等奖</span><strong id="single-jackpot">—</strong></div><div><span>任意常规奖</span><strong id="single-any">—</strong></div><p class="fine-print">中奖与回本是两件事。复式与不同号码可以增加覆盖，同时也增加成本。</p></section></div>
+      <section class="panel history-panel"><div class="panel-toolbar"><h3>最近开奖记录</h3><span id="history-source" class="muted"></span></div><div class="table-wrap"><table class="draw-table"><thead><tr><th>期号 / 日期</th><th>开奖号码</th></tr></thead><tbody id="history-table"></tbody></table></div><button id="history-more" class="quiet-button full-width">再看20期 ↓</button></section>
+    </section>
+  </main>
+
+  <footer><a class="footer-brand" href="#generate">拾数 <span>LOTTERY LAB</span></a><p>参考选号 · 数据研究 · 常规奖核对<br>开奖独立随机，本站不承诺预测准确率，也不提供购彩服务。</p><button class="text-button" id="footer-about">数据来源与规则 ↗</button></footer>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <dialog id="cloud-dialog">
+    <div class="dialog-head"><div><div class="eyebrow subtle">YOUR PRIVATE CLOUD</div><h2>把号码带到另一台设备</h2></div><button class="close-button" data-close="cloud-dialog" aria-label="关闭云端同步窗口">×</button></div>
+    <p id="cloud-dialog-status" class="muted"></p>
+    <div id="cloud-start">
+      <p class="cloud-description">用私人同步码连接手机和电脑。启用或连接时会合并本机号码，之后保存、删除和核对记录都会自动同步。</p>
+      <button id="cloud-create" class="button button-coral full-width field-space">首次使用 · 创建私人同步码</button>
+      <div class="cloud-divider">已经有同步码</div>
+      <form id="cloud-connect-form"><label class="field-label" for="cloud-input">输入其他设备上的私人同步码</label><input id="cloud-input" type="password" autocomplete="off" spellcheck="false" placeholder="SS1-…" required><button id="cloud-connect" type="submit" class="button button-dark full-width field-space">连接并合并号码 →</button></form>
+    </div>
+    <div id="cloud-connected" hidden>
+      <label class="field-label" for="sync-code">你的私人同步码</label><input id="sync-code" type="password" readonly autocomplete="off" spellcheck="false">
+      <div class="button-group field-space"><button id="cloud-reveal" class="button button-outline">显示同步码</button><button id="cloud-copy" class="button button-dark">复制同步码</button></div>
+      <p class="cloud-description field-space">请妥善保存。拥有此码的人可以读取和修改你的号码；同步码丢失后无法通过邮箱找回。号码备份文件不含同步码。</p>
+      <button id="cloud-disconnect" class="danger-link field-space">断开此设备的云端同步</button><p class="fine-print">断开只移除此设备的连接，本机和云端号码均会保留。共享设备使用完后请清理本机记录。</p>
+    </div>
+    <p id="cloud-error" class="inline-error" role="alert" hidden></p>
+    <p class="fine-print">号码加密后存入云端，同步码不会上传。离线时先保存在本机，恢复网络或再次打开页面时重试；也可点击“立即同步”。</p>
+  </dialog>
+
+  <dialog id="check-dialog">
+    <div class="dialog-head"><div><div class="eyebrow subtle">CHECK YOUR NUMBERS</div><h2>核对开奖结果</h2></div><button class="close-button" data-close="check-dialog" aria-label="关闭核对窗口">×</button></div>
+    <p id="check-plan-label" class="muted"></p>
+    <div class="segmented"><button id="check-official-mode" class="active" aria-pressed="true">选择开奖期号</button><button id="check-manual-mode" aria-pressed="false">手动输入奖号</button></div>
+    <form id="check-form">
+      <div id="official-check-fields" class="field-space"><label class="field-label" for="check-issue">开奖期号</label><select id="check-issue"><option value="">开奖后，选择对应期号</option></select><div id="check-draw-preview" class="ball-row draw-preview"></div></div>
+      <div id="manual-check-fields" class="field-space" hidden><label class="field-label" for="manual-issue">开奖期号</label><input id="manual-issue" type="text" inputmode="numeric" placeholder="用于匹配对应版本的常规规则"><label class="field-label field-space" id="manual-main-label" for="manual-main">红球号码</label><input id="manual-main" type="text" placeholder="用空格、逗号或顿号分隔"><label class="field-label field-space" id="manual-extra-label" for="manual-extra">蓝球号码</label><input id="manual-extra" type="text" placeholder="用空格、逗号或顿号分隔"></div>
+      <button type="submit" class="button button-dark full-width field-space">核对中奖情况 →</button><div id="check-error" class="inline-error" role="alert" hidden></div>
+    </form>
+    <div id="check-result" aria-live="polite"></div>
+    <p class="fine-print">只核对常规奖级，不计福运奖或派奖。大乐透追加仅影响一、二等奖；奖金及兑奖以官方公告为准。</p>
+  </dialog>
+
+  <dialog id="about-dialog"><div class="dialog-head"><div><div class="eyebrow subtle">THE METHOD</div><h2>让每个结果，都有出处</h2></div><button class="close-button" data-close="about-dialog" aria-label="关闭说明窗口">×</button></div><div class="about-content"><h3>数据从哪里来</h3><p>双色球来源于中国福彩网，大乐透来源于甘肃省体育彩票管理中心。内置快照采集于2026年10月27日；刷新时尝试获取官方最近100期，数据源不可用时会明确提示。</p><p><a href="https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/" target="_blank" rel="noopener">中国福彩网 ↗</a> · <a href="https://www.gstc.org.cn/wanfa/dlt_history" target="_blank" rel="noopener">甘肃体彩网 ↗</a></p><h3>如何生成参考号码</h3><p>随机模式均匀抽样；热号、冷号和遗漏模式按最近50期的统计值加权抽样。加权改变的是选号偏好，不能据此声称提高中奖率。蓝球分散与后区组合分散优先避免重复覆盖。</p><h3>核对规则</h3><p>双色球只计六个常规奖级。大乐透第26014期起使用七奖级，此前本数据范围内使用九奖级；复式按其包含的每注基本组合核对，倍投计入中奖注数。同一基本注只计最高奖级。</p><p><a href="https://www.scflcp.com.cn/yxgz/823145252.jhtml" target="_blank" rel="noopener">双色球规则 ↗</a> · <a href="https://m.lottery.gov.cn/ksjz/m/yxgz_dlt/" target="_blank" rel="noopener">大乐透规则 ↗</a></p><h3>你的号码存在哪里</h3><p>默认保存在当前浏览器。启用私人同步码后，号码与核对记录会加密保存到云端，其他设备输入同一码即可合并恢复。同步码不会上传，请妥善保管；也可使用“导出备份”留存号码。手动核对结果会标明来源，不能代替官方兑奖。</p><h3>研究边界</h3><p>五年研究覆盖大乐透752期、双色球753期，并校正了一条经正式公告确认的日期错误。回测按时间顺序进行，未发现三种固定策略显著优于随机；本结果不构成盈利承诺。</p></div></dialog>
+</body>
+</html>
