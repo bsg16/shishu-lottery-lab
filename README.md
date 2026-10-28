@@ -2,7 +2,7 @@
 
 双色球与大乐透参考选号、复式计算、号码保存和开奖核对网站。
 
-**在线使用：[shishu-lottery-lab.xiaoccchuan.workers.dev](https://shishu-lottery-lab.xiaoccchuan.workers.dev)**
+**免费新入口：[shishu-lottery.pages.dev](https://shishu-lottery.pages.dev/)** · [原 Worker 入口](https://shishu-lottery-lab.xiaoccchuan.workers.dev)
 
 ## 功能
 
@@ -58,6 +58,31 @@ npm run deploy
 同步码使用256位随机数。浏览器通过 HKDF 派生独立的访问令牌和 AES-256-GCM 密钥；原始同步码与加密密钥不会发送至服务器。访问令牌通过 HTTPS Authorization 头发送，服务端将其 SHA-256 摘要用于隔离空间，只存储密文。接口校验来源、数据大小和版本号，不提供号码库列表。
 
 同步使用每条记录的逻辑时钟、删除标记和整份密文的版本比较。并发写入冲突后重新读取并合并；不会用本机旧列表直接覆盖云端。每个空间最多200组有效方案，保留最多5000条含删除标记的记录。超限时保留现有记录并提示整理，不会静默裁剪。
+
+## Cloudflare Pages 免费入口
+
+`pages/` 提供另一套 Cloudflare 免费地址入口，使用与 Worker 相同的前端。`/api/*` 通过 Service binding 在 Cloudflare 内部调用现有 `shishu-lottery-lab` Worker，因此浏览器无需直接访问 `workers.dev`。私人同步码仍对应同一个云端号码库；不同域名的本机记录互相独立，输入原同步码可恢复云端号码，仅在本机保存的号码需先导出 JSON 备份再导入。
+
+```sh
+npm run build:pages
+# 首次发布需要 Pages 权限，且先确认账号下没有同名无关项目
+npx wrangler pages project create shishu-lottery --production-branch main --cwd pages --force
+npm run deploy:pages
+```
+
+首次创建使用 `--force` 明确保留 Pages 项目和 `pages.dev` 地址，防止新版 Wrangler 自动转为 Worker。现有 Pages 项目的后续发布无需此参数。
+
+构建只复制 `public/`、Pages API 入口和路由配置到被 Git 忽略的 `pages/dist/`。静态资源直接由 Pages 提供，只有 `/api/*` 调用函数。保留 Free 套餐即可使用免费额度，无需注册独立域名；`pages.dev` 在大陆的可达性仍需实际网络验证。
+
+本地同时运行 Pages 与现有 Worker，验证真实 Service binding 和 SQLite：
+
+```sh
+npx wrangler pages dev --cwd pages -c wrangler.jsonc -c ../wrangler.jsonc --port 8788
+# 在另一终端运行
+TEST_BASE_URL=http://localhost:8788 npm run test:integration
+```
+
+线上测试可设置 `TEST_BASE_URL` 为 Pages 地址，再设置 `TEST_PEER_BASE_URL` 为原 Worker 地址，检查同一随机测试空间在两个入口间读写一致。测试只创建随机、空的加密空间，不使用已有同步码或用户号码。
 
 ## 文件与数据
 

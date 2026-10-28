@@ -2,7 +2,9 @@
 
 面向双色球和大乐透的中文参考选号网站，部署为 Cloudflare Worker 与静态资源。
 
-线上地址：https://shishu-lottery-lab.xiaoccchuan.workers.dev
+免费新入口：https://shishu-lottery.pages.dev/
+
+原 Worker 入口：https://shishu-lottery-lab.xiaoccchuan.workers.dev
 
 2026年10月27日已发布 1.2.0，增加中奖规则页与命中条件查询。当前版本 ID：`70133d56-a0e1-4efb-afe2-708bf82efb7f`；16项自动测试通过，并验证命中查询、新旧期号跳转、320/390像素手机布局及线上页面。此前1.1.0的加密云端同步已通过真实 Worker / SQLite 接口和两个独立浏览器环境的恢复、合并测试。生产域名与本地预览的浏览器记录相互独立，可用备份导入迁移。
 
@@ -38,6 +40,12 @@ Cloudflare 项目名：shishu-lottery-lab。首次发布前确认账户下没有
 `/api/draws?game=ssq|dlt` 仅代理两个固定公开数据源，缓存15分钟；上游不可用返回503，前端保留快照与明确提示。数据源可能限制境外访问，因此同时提供手动核对。
 
 1.1.0发布检查时，大乐透在线接口正常，双色球官方上游暂不可用，页面已显示快照提示；选号、云端同步及手动核奖不受影响。
+
+## Pages 免费入口
+
+2026年10月28日已发布 Cloudflare Pages 免费入口 `https://shishu-lottery.pages.dev/`，部署 ID 为 `a92d6586`。使用同一份前端及 Cloudflare 内部 Service binding，API 与持久化号码库继续由原 Worker 提供。16项自动测试、Pages 本地双服务的真实加密同步检查及线上两个入口之间的共享存储读写检查已通过。网页和 API 的 HTTP 检查返回200，用户已反馈新地址可以正常打开。应用内浏览器检查曾返回 `ERR_CONNECTION_CLOSED`，不同网络和客户端的连通情况仍可能不同。
+
+不同入口的浏览器本地存储相互独立。换入口后输入原私人同步码即可连接同一云端号码库；仅本机保存的号码应通过 JSON 备份迁移。免费地址仍以 `pages.dev` 结尾，是否能在大陆网络访问需发布后实测。
 
 ## 数据与边界
 

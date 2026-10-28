@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-data.mjs",
+    "build:pages": "npm run build && node scripts/build-pages.mjs",
     "dev": "wrangler dev --port 8787",
     "test": "node --test tests/*.test.js",
     "test:integration": "node --test tests/sync.integration.js",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy --cwd pages"
   },
   "devDependencies": { "wrangler": "4.153.0" }
 }

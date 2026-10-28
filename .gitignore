@@ -8,3 +8,4 @@ __pycache__/
 number.txt
 artifacts/
 data/*.html
+pages/dist/

@@ -20,4 +20,14 @@ test('real Worker and SQLite isolate vaults, validate requests, and reject stale
   assert.equal((await request(a,'PUT',{revision:2,envelope:{v:1,iv:'invalid',ciphertext:'invalid'}})).status,400);
   assert.equal((await request(a,'DELETE')).status,405);
   assert.equal((await(await request(a)).json()).revision,2);
+  if(process.env.TEST_PEER_BASE_URL) {
+    const peer=new URL('/api/vault',process.env.TEST_PEER_BASE_URL);
+    const headers={Authorization:`Bearer ${a.token}`,Origin:peer.origin};
+    const shared=await(await fetch(peer,{headers})).json();
+    assert.equal(shared.revision,2);
+    assert.deepEqual(await decryptDocument(shared.envelope,a.key),emptyDocument());
+    const update=await fetch(peer,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({revision:2,envelope})});
+    assert.equal(update.status,200);
+    assert.equal((await(await request(a)).json()).revision,3);
+  }
 });
