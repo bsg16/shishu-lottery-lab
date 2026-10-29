@@ -119,13 +119,15 @@
     <p id="cloud-dialog-status" class="muted"></p>
     <div id="cloud-start">
       <p class="cloud-description">用私人同步码连接手机和电脑。启用或连接时会合并本机号码，之后保存、删除和核对记录都会自动同步。</p>
-      <button id="cloud-create" class="button button-coral full-width field-space">首次使用 · 创建私人同步码</button>
+      <button id="cloud-create" class="button button-coral full-width field-space">首次使用 · 创建8位同步码</button>
       <div class="cloud-divider">已经有同步码</div>
-      <form id="cloud-connect-form"><label class="field-label" for="cloud-input">输入其他设备上的私人同步码</label><input id="cloud-input" type="password" autocomplete="off" spellcheck="false" placeholder="SS1-…" required><button id="cloud-connect" type="submit" class="button button-dark full-width field-space">连接并合并号码 →</button></form>
+      <form id="cloud-connect-form"><label class="field-label" for="cloud-input">输入其他设备上的私人同步码</label><input id="cloud-input" type="password" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="8位字母数字，也支持 SS1- 长码" required><button id="cloud-connect" type="submit" class="button button-dark full-width field-space">连接并合并号码 →</button></form>
     </div>
     <div id="cloud-connected" hidden>
       <label class="field-label" for="sync-code">你的私人同步码</label><input id="sync-code" type="password" readonly autocomplete="off" spellcheck="false">
       <div class="button-group field-space"><button id="cloud-reveal" class="button button-outline">显示同步码</button><button id="cloud-copy" class="button button-dark">复制同步码</button></div>
+      <p id="sync-code-hint" class="cloud-description"></p>
+      <button id="cloud-shorten" class="button button-coral full-width field-space" hidden>生成8位短码</button>
       <p class="cloud-description field-space">请妥善保存。拥有此码的人可以读取和修改你的号码；同步码丢失后无法通过邮箱找回。号码备份文件不含同步码。</p>
       <button id="cloud-disconnect" class="danger-link field-space">断开此设备的云端同步</button><p class="fine-print">断开只移除此设备的连接，本机和云端号码均会保留。共享设备使用完后请清理本机记录。</p>
     </div>

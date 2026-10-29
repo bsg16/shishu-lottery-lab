@@ -1,4 +1,5 @@
 import { emptyDocument, entriesFrom, reconcileEntries, mergeDocuments, validateDocument, newSyncCode, normalizeCode, syncKeys, encryptDocument, decryptDocument, documentSignature } from './sync-model.js';
+import { newShortCode, formatShortCode, shortCodeKeys, wrapSyncCode, unwrapSyncCode } from './short-code.js';
 
 export const SYNC_STORE = 'shishu.sync.v1';
 export class SyncClient {
@@ -12,6 +13,7 @@ export class SyncClient {
   }
   persist(state) { this.storage.setItem(SYNC_STORE,JSON.stringify(state)); this.viewDoc=state.doc; this.onEntries(entriesFrom(state.doc)); }
   credentials(code) { if (!this.keys.has(code)) this.keys.set(code,syncKeys(code)); return this.keys.get(code); }
+  displayCode() { const state=this.read();return state?.shortCode?formatShortCode(state.shortCode):state?.code||''; }
   status(kind,message) { this.onStatus({kind,message}); }
   start() {
     try { const state=this.read(); if (state) { this.viewDoc=state.doc; this.onEntries(entriesFrom(state.doc)); void this.sync(); } else this.status('off','仅保存在本机 · 可启用云端同步'); }
@@ -19,9 +21,12 @@ export class SyncClient {
   }
   async request(code,method='GET',body) {
     const {token} = await this.credentials(code);
+    return this.authorizedRequest('/api/vault',token,method,body);
+  }
+  async authorizedRequest(path,token,method='GET',body) {
     let response;
     try {
-      response = await this.fetcher('/api/vault',{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store',signal:AbortSignal.timeout(15000)});
+      response = await this.fetcher(path,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store',signal:AbortSignal.timeout(15000)});
     } catch { throw new Error('暂时无法连接云端，号码已保存在本机，联网后可重试'); }
     let result; try { result=await response.json(); } catch { throw new Error('云端暂不可用，请稍后重试'); }
     if (!response.ok) { const error=new Error(result.error||'同步失败，请稍后重试'); error.status=response.status; throw error; }
@@ -44,16 +49,40 @@ export class SyncClient {
     const result=await this.request(code,'POST',{revision:0,envelope:await encryptDocument(doc,key)});
     if (epoch!==this.epoch) return;
     this.persist({code,doc:reconcileEntries(doc,this.getEntries(),this.actor),dirty:true,lastSyncedAt:result.updatedAt});
-    await this.sync(); return code;
+    await this.sync();
+    if(epoch!==this.epoch||this.read()?.code!==code)return;
+    return this.shorten();
+  }
+  async shorten() {
+    const initial=this.read();if(!initial)throw new Error('请先连接原来的同步空间');
+    if(initial.shortCode)return formatShortCode(initial.shortCode);
+    const epoch=this.epoch,code=initial.code;
+    for(let attempt=0;attempt<3;attempt++) {
+      const shortCode=newShortCode(),{token,key}=await shortCodeKeys(shortCode);
+      const envelope=await wrapSyncCode(code,key);
+      try {await this.authorizedRequest('/api/sync-code',token,'POST',{envelope});}
+      catch(error){if(error.status===409)continue;throw error;}
+      const current=this.read();if(epoch!==this.epoch||current?.code!==code)return;
+      this.persist({...current,shortCode});return shortCode;
+    }
+    throw new Error('短码暂时无法生成，请稍后重试；原同步码仍可使用');
   }
   async connect(value) {
     if (this.read()) throw new Error('请先断开当前同步空间');
-    const epoch=this.epoch, code=normalizeCode(value), {key}=await this.credentials(code);
+    const epoch=this.epoch;let code,shortCode;
+    if(String(value).trim().startsWith('SS1-'))code=normalizeCode(value);
+    else {
+      shortCode=formatShortCode(value);
+      const shortKeys=await shortCodeKeys(shortCode);
+      const record=await this.authorizedRequest('/api/sync-code',shortKeys.token);
+      code=await unwrapSyncCode(record.envelope,shortKeys.key);
+    }
+    const {key}=await this.credentials(code);
     const remote=await this.request(code), remoteDoc=await decryptDocument(remote.envelope,key);
     if (epoch!==this.epoch) return;
     const localDoc=reconcileEntries(emptyDocument(),this.getEntries(),this.actor);
-    this.persist({code,doc:mergeDocuments(localDoc,remoteDoc),dirty:true,lastSyncedAt:remote.updatedAt});
-    await this.sync(); return code;
+    this.persist({code,...(shortCode?{shortCode}:{}),doc:mergeDocuments(localDoc,remoteDoc),dirty:true,lastSyncedAt:remote.updatedAt});
+    await this.sync(); return shortCode||code;
   }
   disconnect() {
     this.epoch++; clearTimeout(this.timer); this.requested=false; this.storage.removeItem(SYNC_STORE); this.keys.clear(); this.viewDoc=null;

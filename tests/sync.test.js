@@ -2,14 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyDocument,newSyncCode,normalizeCode,syncKeys,encryptDocument,decryptDocument,reconcileEntries,mergeDocuments,entriesFrom,documentSignature} from '../public/sync-model.js';
 import {SyncClient} from '../public/sync-client.js';
+import {normalizeShortCode,newShortCode,shortCodeKeys,wrapSyncCode,unwrapSyncCode} from '../public/short-code.js';
 const entry=id=>({id,game:'ssq',mode:'single',multiplier:1,additional:false,createdAt:'2026-10-27T10:00:00Z',tickets:[{main:[1,2,3,4,5,6],extra:[7]}]});
 const doc=(id,actor)=>reconcileEntries(emptyDocument(),[entry(id)],actor);
 function storage(){const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};}
 function server(){
-  const vaults=new Map();let offline=false;
-  return {setOffline(value){offline=value;},vaults,async fetcher(_url,options){
+  const vaults=new Map(),codes=new Map();let offline=false;
+  return {setOffline(value){offline=value;},vaults,codes,async fetcher(url,options){
     if(offline)throw new Error('offline');
-    const token=options.headers.Authorization,old=vaults.get(token);
+    const token=options.headers.Authorization;
+    if(url==='/api/sync-code'){
+      const old=codes.get(token);
+      if(options.method==='GET')return Response.json(old||{error:'未找到'},{status:old?200:404});
+      if(old)return Response.json({error:'conflict'},{status:409});
+      codes.set(token,JSON.parse(options.body));return Response.json({ok:true},{status:201});
+    }
+    const old=vaults.get(token);
     if(options.method==='GET')return Response.json(old||{error:'未找到'},{status:old?200:404});
     const body=JSON.parse(options.body);
     if((options.method==='POST'&&old)||body.revision!==(old?.revision||0))return Response.json({error:'conflict'},{status:409});
@@ -81,4 +89,61 @@ test('a stale tab preserves an unseen addition from a second tab sharing local s
   b.update([entry('from-second-tab')]);
   assert.deepEqual(second.map(e=>e.id),['from-first-tab','from-second-tab']);
   a.disconnect();b.disconnect();
+});
+test('eight-character codes normalize case and separators; encrypted aliases reject wrong keys',async()=>{
+  const short=newShortCode();assert.equal(normalizeShortCode(short).length,8);
+  assert.equal(normalizeShortCode(short.toLowerCase().replace('-',' ')),normalizeShortCode(short));
+  for(const invalid of ['12345678','ABCDEFGI','ABCDEFG0','ABCD234','ABCD23456'])assert.throws(()=>normalizeShortCode(invalid));
+  const keys=await shortCodeKeys(short),same=await shortCodeKeys(short.toLowerCase()),other=await shortCodeKeys(newShortCode());
+  assert.equal(keys.token,same.token);
+  const long=newSyncCode(),envelope=await wrapSyncCode(long,keys.key);
+  assert.equal(envelope.ciphertext.length,84);
+  assert.equal(JSON.stringify(envelope).includes(long),false);
+  assert.equal(await unwrapSyncCode(envelope,same.key),long);
+  await assert.rejects(unwrapSyncCode(envelope,other.key));
+});
+test('a short alias restores the existing vault and stays compatible with legacy devices',async()=>{
+  const remote=server(),legacy=newSyncCode(),keys=await syncKeys(legacy);
+  remote.vaults.set(`Bearer ${keys.token}`,{revision:1,envelope:await encryptDocument(doc('legacy','old-device'),keys.key),updatedAt:new Date().toISOString()});
+  const a=device(remote),b=device(remote),oldDevice=device(remote);
+  await a.client.connect(legacy);const short=await a.client.shorten();
+  assert.equal(a.client.read().code,legacy);assert.equal(a.client.displayCode(),short);
+  await b.client.connect(short.toLowerCase().replace('-',''));
+  await oldDevice.client.connect(legacy);
+  assert.equal(b.entries[0].id,'legacy');assert.equal(remote.vaults.size,1);
+  oldDevice.client.update([...oldDevice.entries,entry('new-from-old-device')]);await oldDevice.client.sync();await b.client.sync();
+  assert.deepEqual(oldDevice.entries,b.entries);
+  assert.equal(JSON.stringify([...remote.codes]).includes(legacy),false);
+  assert.equal(JSON.stringify([...remote.codes]).includes(short),false);
+  a.client.disconnect();b.client.disconnect();oldDevice.client.disconnect();
+});
+test('an unknown short code leaves local records and connection state untouched',async()=>{
+  const remote=server(),a=device(remote,[entry('keep-local')]);
+  await assert.rejects(a.client.connect(newShortCode()));
+  assert.equal(a.client.read(),null);assert.equal(a.entries[0].id,'keep-local');assert.equal(remote.vaults.size,0);
+});
+test('a failed short-code registration keeps the usable legacy connection',async()=>{
+  const remote=server(),a=device(remote,[entry('keep-local')]);
+  const original=a.client.fetcher;
+  a.client.fetcher=(url,options)=>url==='/api/sync-code'?Promise.resolve(Response.json({error:'later'},{status:503})):original(url,options);
+  await assert.rejects(a.client.create());
+  const legacy=a.client.read().code;assert.match(legacy,/^SS1-/);assert.equal(a.entries[0].id,'keep-local');
+  const b=device(remote);await b.client.connect(legacy);assert.equal(b.entries[0].id,'keep-local');
+  a.client.fetcher=original;const short=await a.client.shorten();assert.equal(normalizeShortCode(short).length,8);
+  a.client.disconnect();b.client.disconnect();
+});
+test('short-code collisions retry without replacing existing codes or losing an in-flight save',async()=>{
+  const remote=server(),a=device(remote);const original=a.client.fetcher;let attempts=0;
+  a.client.fetcher=async(url,options)=>{
+    if(url==='/api/sync-code'&&options.method==='POST') {
+      attempts++;
+      if(attempts===1)return Response.json({error:'conflict'},{status:409});
+      a.client.update([entry('during-shortening')]);
+    }
+    return original(url,options);
+  };
+  const short=await a.client.create();await a.client.sync();
+  assert.equal(attempts,2);assert.equal(a.entries[0].id,'during-shortening');
+  const b=device(remote);await b.client.connect(short);assert.equal(b.entries[0].id,'during-shortening');
+  a.client.disconnect();b.client.disconnect();
 });

@@ -1,3 +1,4 @@
+import { codeRateLimit, shortCodeRecord } from './sync-codes.js';
 const MAX_BYTES = 1_900_000;
 export const json = (data,status=200) => Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 function validEnvelope(e) {
@@ -21,6 +22,9 @@ export class LotteryVault {
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS vault (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL, envelope TEXT NOT NULL, updated_at TEXT NOT NULL)');
   }
   async fetch(request) {
+    const url=new URL(request.url);
+    if(url.pathname==='/code-limit')return codeRateLimit(this.ctx,url.searchParams.get('operation'));
+    if(url.pathname==='/api/sync-code')return shortCodeRecord(request,this.ctx);
     if (request.method === 'GET') {
       const row = this.ctx.storage.sql.exec('SELECT revision, envelope, updated_at FROM vault WHERE id = 1').toArray()[0];
       return row ? json({revision:row.revision,envelope:JSON.parse(row.envelope),updatedAt:row.updated_at}) : json({error:'未找到该同步空间，请检查同步码'},404);

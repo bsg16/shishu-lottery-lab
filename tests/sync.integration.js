@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newSyncCode,syncKeys,emptyDocument,encryptDocument,decryptDocument} from '../public/sync-model.js';
+import {newShortCode,shortCodeKeys,wrapSyncCode,unwrapSyncCode} from '../public/short-code.js';
 const endpoint=`${process.env.TEST_BASE_URL||'http://localhost:8787'}/api/vault`;
 test('real Worker and SQLite isolate vaults, validate requests, and reject stale writes',async()=>{
   const a=await syncKeys(newSyncCode()),b=await syncKeys(newSyncCode());
@@ -30,4 +31,26 @@ test('real Worker and SQLite isolate vaults, validate requests, and reject stale
     assert.equal(update.status,200);
     assert.equal((await(await request(a)).json()).revision,3);
   }
+});
+test('eight-character codes restore the same real vault and work through both site entrances',async()=>{
+  const legacy=newSyncCode(),vault=await syncKeys(legacy),short=newShortCode(),keys=await shortCodeKeys(short);
+  const aliasEndpoint=new URL('/api/sync-code',endpoint);
+  const headers={Authorization:`Bearer ${keys.token}`,'Content-Type':'application/json'};
+  const wrapped=await wrapSyncCode(legacy,keys.key);
+  const envelope=await encryptDocument(emptyDocument(),vault.key);
+  assert.equal((await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${vault.token}`,'Content-Type':'application/json'},body:JSON.stringify({revision:0,envelope})})).status,201);
+  assert.equal((await fetch(aliasEndpoint,{headers})).status,404);
+  assert.equal((await fetch(aliasEndpoint,{method:'POST',headers,body:JSON.stringify({envelope:wrapped})})).status,201);
+  assert.equal((await fetch(aliasEndpoint,{method:'POST',headers,body:JSON.stringify({envelope:wrapped})})).status,409);
+  const resolve=async base=>{
+    const response=await fetch(new URL('/api/sync-code',base),{headers:{Authorization:`Bearer ${keys.token}`,Origin:new URL(base).origin}});
+    assert.equal(response.status,200);
+    const restoredCode=await unwrapSyncCode((await response.json()).envelope,(await shortCodeKeys(short.toLowerCase().replace('-',''))).key);
+    assert.equal(restoredCode,legacy);
+    const restoredKeys=await syncKeys(restoredCode);
+    const restored=await(await fetch(new URL('/api/vault',base),{headers:{Authorization:`Bearer ${restoredKeys.token}`}})).json();
+    assert.deepEqual(await decryptDocument(restored.envelope,restoredKeys.key),emptyDocument());
+  };
+  await resolve(endpoint);
+  if(process.env.TEST_PEER_BASE_URL)await resolve(process.env.TEST_PEER_BASE_URL);
 });
