@@ -6,8 +6,9 @@ const all = selector => [...document.querySelectorAll(selector)];
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE = 'shishu.plans.v1', CACHE = 'shishu.draws.v1';
 let game = 'ssq', mode = 'single', view = 'generate', data, currentPlan, saved = [], historyLimit = 20;
-let activeEntry, manualCheck = false, toastTimer, cloud, rules;
-const fetchedState = {}, loading = new Set();
+let activeEntry, manualCheck = false, toastTimer, cloud, rules, displayedCheckDraw;
+const fetchedState = {}, lastAttempt = {}, loading = new Set();
+const REFRESH_INTERVAL = 5 * 60 * 1000;
 const strategyNames = {random:'随机选号',hot:'热号参考',cold:'冷号参考',overdue:'遗漏参考'};
 const rankNames = ['','一等奖','二等奖','三等奖','四等奖','五等奖','六等奖','七等奖','八等奖','九等奖'];
 const amount = v => Number(v).toLocaleString('zh-CN',{maximumFractionDigits:2});
@@ -84,7 +85,7 @@ function setGame(next) {
   all('[data-game]').forEach(b=>{b.classList.toggle('active',b.dataset.game===game);b.setAttribute('aria-pressed',b.dataset.game===game);});
   renderConfig();renderLatest();renderHistory();rules?.render(game);
   if(changed && currentPlan)generate();
-  if(!fetchedState[game])refreshData(game);
+  if(Date.now()-(lastAttempt[game]||0)>=REFRESH_INTERVAL)refreshData(game);
 }
 function setView(next) {
   if(!['generate','saved','history','rules'].includes(next))next='generate';view=next;
@@ -101,16 +102,21 @@ function renderLatest() {
   $('data-state').textContent=loading.has(game)?'正在查询官方数据…':fetchedState[game]||`内置快照 · ${data.snapshotDate} 采集`;
   $('refresh-button').disabled=loading.has(game);
 }
-async function refreshData(which=game) {
-  if(loading.has(which))return;loading.add(which);renderLatest();
+async function refreshData(which=game,force=false) {
+  if(loading.has(which))return;loading.add(which);lastAttempt[which]=Date.now();renderLatest();if(activeEntry?.game===which)renderCheckData();
   try {
-    const response=await fetch(`/api/draws?game=${which}`,{signal:AbortSignal.timeout(13000)}),result=await response.json();
+    const response=await fetch(`/api/draws?game=${which}${force?'&refresh=1':''}`,{cache:'no-store',signal:AbortSignal.timeout(13000)}),result=await response.json();
     if(!response.ok||result.fallback)throw new Error();
     data.games[which].draws=mergeDraws(which,data.games[which].draws,result.draws);
-    fetchedState[which]=`已查询官方数据 · ${new Date(result.checkedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`;
+    if(result.sourceName)data.games[which].sourceName=result.sourceName;
+    fetchedState[which]=`${result.sourceName||'官方数据'} · ${dateLabel(result.checkedAt)} 查询`;
     try { const cached=JSON.parse(localStorage.getItem(CACHE)||'{}');cached[which]=result.draws;localStorage.setItem(CACHE,JSON.stringify(cached)); }catch{}
   }catch{fetchedState[which]='官方源暂不可用 · 显示已收录数据';}
-  finally{loading.delete(which);if(which===game){renderLatest();if(view==='history')renderHistory();}}
+  finally{loading.delete(which);if(which===game){renderLatest();if(view==='history')renderHistory();}if(activeEntry?.game===which)renderCheckData();}
+}
+function refreshVisibleData() {
+  if(document.hidden)return;
+  for(const which of Object.keys(GAMES))if(Date.now()-(lastAttempt[which]||0)>=REFRESH_INTERVAL)refreshData(which);
 }
 function renderSaved() {
   $('saved-count').textContent=saved.length;
@@ -134,7 +140,7 @@ function renderHistory() {
   $('study-range').textContent=`研究区间 ${info.study.from}—${info.study.to} · ${info.study.count} 期`;
   $('study-table').innerHTML=info.study.backtests.map(row=>`<tr><td>${escape(row.name)}</td><td>${row.mean.toFixed(3)}</td><td>${row.baseline.toFixed(3)}</td></tr>`).join('');
   $('single-jackpot').textContent=`1 / ${amount(g.total)}`;$('single-any').textContent=game==='ssq'?'6.709%':'6.670%';
-  $('history-source').textContent=game==='ssq'?'来源：中国福彩网':'来源：甘肃体彩网';
+  $('history-source').textContent=`来源：${info.sourceName||(game==='ssq'?'中国福彩网':'甘肃体彩网')} · 历史记录含内置快照`;
   $('history-table').innerHTML=info.draws.slice(0,historyLimit).map(row=>`<tr><td>${escape(row.issue)}<small>${escape(row.date)}</small></td><td><div class="ball-row">${balls(row)}</div></td></tr>`).join('');
   $('history-more').hidden=historyLimit>=info.draws.length;
 }
@@ -142,11 +148,23 @@ function openCheck(id) {
   activeEntry=saved.find(r=>r.id===id);if(!activeEntry)return;
   const g=GAMES[activeEntry.game];manualCheck=false;
   $('check-plan-label').textContent=`${g.name} · ${planTotals(activeEntry).combinations} 注基本组合 · ${activeEntry.multiplier} 倍${activeEntry.additional?' · 已追加':''}`;
-  $('check-issue').innerHTML='<option value="">开奖后，选择对应期号</option>'+data.games[activeEntry.game].draws.map(r=>`<option value="${r.issue}">${r.issue} 期 · ${r.date}</option>`).join('');
-  if(activeEntry.targetIssue&&data.games[activeEntry.game].draws.some(r=>r.issue===activeEntry.targetIssue))$('check-issue').value=activeEntry.targetIssue;
+  $('check-issue').value='';
   $('manual-issue').value=activeEntry.targetIssue||'';$('manual-main').value='';$('manual-extra').value='';
   $('manual-main-label').textContent=`${g.mainLabel}号码（${g.mainK}个）`;$('manual-extra-label').textContent=`${g.extraLabel}号码（${g.extraK}个）`;
-  $('check-result').innerHTML='';errorAt('check-error','');renderCheckMode();renderCheckPreview();$('check-dialog').showModal();
+  $('check-result').innerHTML='';errorAt('check-error','');renderCheckMode();$('check-dialog').showModal();renderCheckData();refreshData(activeEntry.game,true);
+}
+function renderCheckData() {
+  if(!activeEntry||!$('check-dialog').open)return;
+  const which=activeEntry.game,draws=data.games[which].draws,selected=$('check-issue').value||activeEntry.targetIssue||'';
+  $('check-issue').innerHTML='<option value="">开奖后，选择对应期号</option>'+draws.map(r=>`<option value="${escape(r.issue)}">${escape(r.issue)} 期 · ${escape(r.date)}</option>`).join('');
+  if(draws.some(r=>r.issue===selected))$('check-issue').value=selected;
+  const state=loading.has(which)?'正在查询最新开奖…':fetchedState[which]||'显示已收录数据';
+  const missing=activeEntry.targetIssue&&!draws.some(r=>r.issue===activeEntry.targetIssue);
+  $('check-data-state').textContent=`${state} · 已收录至 ${draws[0].issue} 期${missing?'；尚未收录目标 '+activeEntry.targetIssue+' 期，可刷新重试或手动输入':''}`;
+  $('check-refresh').disabled=loading.has(which);
+  const signature=JSON.stringify(draws.find(r=>r.issue===$('check-issue').value));
+  if(!manualCheck&&signature!==displayedCheckDraw)$('check-result').innerHTML='';
+  displayedCheckDraw=signature;renderCheckPreview();
 }
 function renderCheckMode() {
   $('official-check-fields').hidden=manualCheck;$('manual-check-fields').hidden=!manualCheck;
@@ -197,7 +215,8 @@ function wire() {
     if(!currentPlan)return;
     try{const targetIssue=$('target-issue').value.trim()?canonicalIssue(currentPlan.game,$('target-issue').value):'';if(saved.some(r=>r.id===currentPlan.id)){toast('这组号码已经保存');return;}writeSaved([...saved,{...currentPlan,targetIssue}]);$('save-plan').textContent='已保存 ✓';toast('已保存到「我的号码」');}catch(e){toast(e.message.includes('期号')?e.message:'保存失败：请检查浏览器存储，或先导出备份');}
   });
-  $('refresh-button').addEventListener('click',()=>refreshData());
+  $('refresh-button').addEventListener('click',()=>refreshData(game,true));
+  $('check-refresh').addEventListener('click',()=>activeEntry&&refreshData(activeEntry.game,true));
   $('export-saved').addEventListener('click',()=>{if(!saved.length){toast('还没有保存的号码');return;}download('拾数-号码备份.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),entries:saved},null,2),'application/json');});
   $('import-saved').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5_000_000)throw new Error('备份文件超过5MB');const entries=safeImported(JSON.parse(await file.text()));writeSaved([...saved,...entries]);toast(`已导入 ${entries.length} 组方案，核对记录请重新验证`);}catch(e){toast(e.message||'导入失败');}finally{e.target.value='';}});
   ['frequency-zone','frequency-window'].forEach(id=>$(id).addEventListener('change',renderHistory));
@@ -214,12 +233,15 @@ function wire() {
   ['about-button','footer-about'].forEach(id=>$(id).addEventListener('click',()=>$('about-dialog').showModal()));
   window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
   window.addEventListener('storage',event=>{if(event.key===STORE){readSaved();renderSaved();}});
+  window.addEventListener('focus',refreshVisibleData);
+  document.addEventListener('visibilitychange',refreshVisibleData);
+  setInterval(refreshVisibleData,REFRESH_INTERVAL);
 }
 async function init() {
   try {
     const response=await fetch('/history.json');if(!response.ok)throw new Error();data=await response.json();
     try{const cached=JSON.parse(localStorage.getItem(CACHE)||'{}');for(const which of Object.keys(GAMES))if(Array.isArray(cached[which]))data.games[which].draws=mergeDraws(which,data.games[which].draws,cached[which]);}catch{}
-    rules=setupRules();readSaved();wire();renderConfig();renderSaved();renderLatest();renderHistory();generate();setView(location.hash.slice(1)||'generate');refreshData();
+    rules=setupRules();readSaved();wire();renderConfig();renderSaved();renderLatest();renderHistory();generate();setView(location.hash.slice(1)||'generate');refreshVisibleData();
     cloud=setupCloudSync({getEntries:()=>saved,onEntries:entries=>{saved=entries;try{localStorage.setItem(STORE,JSON.stringify(saved));}catch{}renderSaved();},notify:toast});
   }catch{errorAt('page-error','历史数据未能加载，请刷新页面重试。');$('generate-button').disabled=true;$('results').innerHTML='<div class="loading">数据加载失败</div>';}
 }

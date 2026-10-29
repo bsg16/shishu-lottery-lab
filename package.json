@@ -1,9 +1,10 @@
 {
   "name": "shishu-lottery-lab",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "scripts": {
+    "update:draws": "node scripts/update-draws.mjs",
     "build": "node scripts/build-data.mjs",
     "build:pages": "npm run build && node scripts/build-pages.mjs",
     "dev": "wrangler dev --port 8787",

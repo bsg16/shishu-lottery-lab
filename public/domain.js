@@ -135,5 +135,5 @@ export function ticketText(entry) { return entry.tickets.map(t => `${t.main.map(
 export function mergeDraws(game, existing, updates) {
   const map = new Map(existing.map(r=>[canonicalIssue(game,r.issue),r]));
   for (const r of updates) if (validateDraw(game,r) && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) map.set(canonicalIssue(game,r.issue),{...map.get(canonicalIssue(game,r.issue)),...r,issue:canonicalIssue(game,r.issue)});
-  return [...map.values()].sort((a,b)=>b.date.localeCompare(a.date));
+  return [...map.values()].sort((a,b)=>Number(b.issue)-Number(a.issue));
 }

@@ -51,7 +51,7 @@ npm run deploy
 
 `wrangler.jsonc` 配置静态资源、Worker 和 SQLite Durable Object。首次发布同步功能时，`v1` migration 会创建 `LotteryVault`。不要删除已发布的迁移记录。部署前确认目标账号、Worker 名称和现有资源。
 
-- `GET /api/draws?game=ssq|dlt`：固定官方数据源代理，缓存15分钟。
+- `GET /api/draws?game=ssq|dlt`：固定官方数据源代理，边缘缓存5分钟；加 `&refresh=1` 强制重新查询，浏览器不缓存接口响应。大乐透并行查询江苏、甘肃体彩，过滤日期重复、倒序或号码无效的源；按期号合并并优先采用江苏体彩的重复期号记录。
 - `GET /api/health`：应用版本。
 - `POST /api/vault`：新建私人同步空间；`GET` 读取；`PUT` 按版本写入。
 
@@ -88,6 +88,7 @@ TEST_BASE_URL=http://localhost:8788 npm run test:integration
 
 - `public/`：前端及公开历史快照；`server/vault.js`：持久化同步接口；`worker.js`：入口。
 - `scripts/build-data.mjs`：从研究快照构建 `public/history.json`。
+- `npm run update:draws`：从官方源更新 `data/latest-draws.json`，再运行构建/部署即可更新离线快照；不会改变五年研究样本。页面打开时查询两个彩种，前台每5分钟及返回页面时补查；核奖窗口主动查询对应彩种，并提供强制刷新按钮。
 - `research.py`、`five_year_research.py`、`data/`：公开开奖数据与可复现研究材料。
 - [五年研究](FIVE_YEAR_RESEARCH.md) · [研究方法](FIVE_YEAR_METHOD.md) · [网站说明](WEBSITE.md)。
 
