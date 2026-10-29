@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {emptyDocument,newSyncCode,normalizeCode,syncKeys,encryptDocument,decryptDocument,reconcileEntries,mergeDocuments,entriesFrom,documentSignature} from '../public/sync-model.js';
 import {SyncClient} from '../public/sync-client.js';
 import {normalizeShortCode,newShortCode,shortCodeKeys,wrapSyncCode,unwrapSyncCode} from '../public/short-code.js';
+import {normalizeSyncName,syncNameKeys} from '../public/sync-name.js';
 const entry=id=>({id,game:'ssq',mode:'single',multiplier:1,additional:false,createdAt:'2026-10-27T10:00:00Z',tickets:[{main:[1,2,3,4,5,6],extra:[7]}]});
 const doc=(id,actor)=>reconcileEntries(emptyDocument(),[entry(id)],actor);
 function storage(){const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};}
@@ -146,4 +147,106 @@ test('short-code collisions retry without replacing existing codes or losing an 
   assert.equal(attempts,2);assert.equal(a.entries[0].id,'during-shortening');
   const b=device(remote);await b.client.connect(short);assert.equal(b.entries[0].id,'during-shortening');
   a.client.disconnect();b.client.disconnect();
+});
+test('custom names accept user-chosen lengths and normalize Chinese, Latin case and full-width text',async()=>{
+  assert.equal(normalizeSyncName(' 小川选号_27 '),'小川选号_27');
+  assert.equal(normalizeSyncName('Ａlice_２７'),'alice_27');
+  assert.equal(normalizeSyncName('小川'),'小川');
+  assert.equal(normalizeSyncName('𠀀'.repeat(32)),'𠀀'.repeat(32));
+  for(const invalid of ['', '川', '小川'.repeat(17), '小 川', '<script>', '🙂🙂', 'SS1-name'])assert.throws(()=>normalizeSyncName(invalid));
+  const a=await syncNameKeys('Ａlice_２７'),b=await syncNameKeys('alice_27'),c=await syncNameKeys('小川选号_27');
+  assert.equal(a.token,b.token);assert.notEqual(a.token,c.token);
+  const long=newSyncCode(),envelope=await wrapSyncCode(long,a.key);
+  assert.equal(await unwrapSyncCode(envelope,b.key),long);
+  await assert.rejects(unwrapSyncCode(envelope,c.key));
+  assert.equal((await syncNameKeys('abcd-efgh')).token,(await shortCodeKeys('ABCDEFGH')).token);
+  assert.equal((await shortCodeKeys('ABCD-EFGH')).token,'pKAZSVivgH46ET-bRdCfarQt1vqaKR2BbiFB0sXAE4s');
+});
+test('custom names create and restore a vault; changing names preserves old names, codes and devices',async()=>{
+  const remote=server(),a=device(remote,[entry('original')]),b=device(remote),c=device(remote),old=device(remote);
+  assert.equal(await a.client.create('小川选号_27'),'小川选号_27');
+  await b.client.connect('小川选号_27');
+  const long=a.client.read().code,short=await a.client.shorten();
+  assert.equal(await a.client.setSyncName('My_lottery'),'my_lottery');
+  assert.equal(a.client.displayCode(),'my_lottery');
+  b.client.update([...b.entries,entry('from-old-name')]);await b.client.sync();
+  await c.client.connect('MY_LOTTERY');await old.client.connect(long);
+  assert.deepEqual(c.entries,b.entries);assert.deepEqual(old.entries,b.entries);
+  old.client.disconnect();await old.client.connect(short);assert.deepEqual(old.entries,b.entries);
+  old.client.disconnect();await old.client.connect('小川选号_27');assert.deepEqual(old.entries,b.entries);
+  assert.equal(remote.vaults.size,1);
+  assert.equal(JSON.stringify([...remote.codes]).includes('小川选号_27'),false);
+  for(const d of [a,b,c,old])d.client.disconnect();
+});
+test('occupied names never connect a creator to someone else or replace their current alias',async()=>{
+  const remote=server(),a=device(remote,[entry('owner')]),b=device(remote,[entry('local')]);
+  await a.client.create('小川选号_27');
+  await assert.rejects(b.client.create('小川选号_27'),/已被占用/);
+  assert.equal(b.client.read(),null);assert.equal(b.entries[0].id,'local');assert.equal(remote.vaults.size,1);
+  await b.client.create('另一位用户');const before=b.client.read();
+  await assert.rejects(b.client.setSyncName('小川选号_27'),/已被占用/);
+  assert.deepEqual(b.client.read(),before);assert.equal(b.entries[0].id,'local');
+  const oldCode=await a.client.shorten();
+  await assert.rejects(b.client.setSyncName(oldCode.toLowerCase().replace('-','')),/已被占用/);
+  assert.equal(b.client.displayCode(),'另一位用户');
+  a.client.disconnect();b.client.disconnect();
+});
+test('invalid and unknown names leave local data and cloud connection unchanged',async()=>{
+  const remote=server(),a=device(remote,[entry('local')]);
+  for(const name of ['单', '有 空格', '名字'.repeat(17)])await assert.rejects(a.client.create(name));
+  await assert.rejects(a.client.connect('不存在的名字'));
+  assert.equal(a.client.read(),null);assert.equal(a.entries[0].id,'local');assert.equal(remote.vaults.size,0);
+});
+test('a lost nickname-registration response can be retried without losing in-flight saves',async()=>{
+  const remote=server(),a=device(remote,[entry('original')]);const short=await a.client.create();
+  const original=a.client.fetcher;let fail=true;
+  a.client.fetcher=async(url,options)=>{
+    const response=await original(url,options);
+    if(fail&&url==='/api/sync-code'&&options.method==='POST'){
+      fail=false;a.client.update([...a.entries,entry('during-registration')]);throw new Error('lost response');
+    }
+    return response;
+  };
+  await assert.rejects(a.client.setSyncName('我的选号库'));
+  assert.equal(a.client.displayCode(),short);
+  await a.client.setSyncName('我的选号库');await a.client.sync();
+  const b=device(remote);await b.client.connect('我的选号库');
+  assert.deepEqual(b.entries.map(e=>e.id),['during-registration','original']);
+  await a.client.setSyncName('另一个名字');await a.client.setSyncName('我的选号库');
+  assert.equal(a.client.displayCode(),'我的选号库');assert.equal(remote.vaults.size,1);
+  a.client.disconnect();b.client.disconnect();
+});
+test('a nickname claimed between availability check and registration preserves the new owner vault',async()=>{
+  const remote=server(),a=device(remote,[entry('local')]),other=newSyncCode(),keys=await syncNameKeys('同时取名');
+  const original=a.client.fetcher;let race=true;
+  a.client.fetcher=async(url,options)=>{
+    if(race&&url==='/api/sync-code'&&options.method==='POST'){
+      race=false;remote.codes.set(`Bearer ${keys.token}`,{envelope:await wrapSyncCode(other,keys.key)});
+    }
+    return original(url,options);
+  };
+  await assert.rejects(a.client.create('同时取名'),/已被占用/);
+  assert.notEqual(a.client.read().code,other);assert.match(a.client.displayCode(),/^SS1-/);
+  assert.equal(a.entries[0].id,'local');
+  await a.client.setSyncName('重试新名字');
+  const b=device(remote);await b.client.connect('重试新名字');assert.equal(b.entries[0].id,'local');
+  a.client.disconnect();b.client.disconnect();
+});
+test('storage events across tabs do not restart sync endlessly or interrupt naming a new vault',async()=>{
+  const remote=server(),values=new Map(),tabs=[];let requests=0;
+  const fetcher=(...args)=>{assert.ok(++requests<20,'storage events must not cause a request loop');return remote.fetcher(...args);};
+  const device=index=>{
+    let entries=[];
+    const notify=(key,oldValue)=>queueMicrotask(()=>tabs.forEach((tab,i)=>{if(i!==index)tab.storageChanged(oldValue);}));
+    const shared={getItem:k=>values.get(k)??null,setItem:(k,v)=>{const old=values.get(k)??null;values.set(k,v);if(old!==v)notify(k,old);},removeItem:k=>{const old=values.get(k)??null;values.delete(k);if(old!==null)notify(k,old);}};
+    return new SyncClient({storage:shared,fetcher,getEntries:()=>entries,onEntries:e=>{entries=e;}});
+  };
+  const a=device(0),b=device(1);tabs.push(a,b);
+  assert.equal(await a.create('多页测试'),'多页测试');
+  await Promise.all([a.busy,b.busy]);
+  assert.equal(a.displayCode(),'多页测试');assert.equal(b.displayCode(),'多页测试');
+  a.update([entry('shared')]);clearTimeout(a.timer);await a.sync();
+  assert.equal(entriesFrom(b.viewDoc)[0].id,'shared');
+  const settled=requests;await new Promise(resolve=>setTimeout(resolve,25));assert.equal(requests,settled);
+  assert.equal(a.epoch,0);a.disconnect();b.disconnect();
 });

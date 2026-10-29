@@ -15,10 +15,14 @@ export const formatShortCode=value=>{const code=normalizeShortCode(value);return
 export const newShortCode=()=>formatShortCode(Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>alphabet[b&31]).join(''));
 
 export async function shortCodeKeys(value) {
-  const material=await crypto.subtle.importKey('raw',encoder.encode(normalizeShortCode(value)),'PBKDF2',false,['deriveBits']);
-  const stretched=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:context,iterations:600000},material,256);
+  return aliasKeys(normalizeShortCode(value),'shishu-short-code-v1');
+}
+export async function aliasKeys(value,domain) {
+  const salt=encoder.encode(domain);
+  const material=await crypto.subtle.importKey('raw',encoder.encode(value),'PBKDF2',false,['deriveBits']);
+  const stretched=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:600000},material,256);
   const root=await crypto.subtle.importKey('raw',stretched,'HKDF',false,['deriveBits','deriveKey']);
-  const parameters=label=>({name:'HKDF',hash:'SHA-256',salt:context,info:encoder.encode(label)});
+  const parameters=label=>({name:'HKDF',hash:'SHA-256',salt,info:encoder.encode(label)});
   const token=base64(new Uint8Array(await crypto.subtle.deriveBits(parameters('lookup'),root,256)));
   const key=await crypto.subtle.deriveKey(parameters('wrapping'),root,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
   return {token,key};

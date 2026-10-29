@@ -32,7 +32,7 @@ export async function shortCodeRecord(request,ctx) {
   ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS short_code (id INTEGER PRIMARY KEY, envelope TEXT NOT NULL)');
   if(request.method==='GET') {
     const row=ctx.storage.sql.exec('SELECT envelope FROM short_code WHERE id = 1').toArray()[0];
-    return row?json({envelope:JSON.parse(row.envelope)}):json({error:'未找到该同步码，请检查8位字母数字是否正确'},404);
+    return row?json({envelope:JSON.parse(row.envelope)}):json({error:'未找到该同步名或同步码，请检查输入是否正确'},404);
   }
   if(request.method!=='POST')return json({error:'不支持的请求方式'},405);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))return json({error:'请求格式不正确'},415);
@@ -48,7 +48,7 @@ export async function shortCodeRecord(request,ctx) {
   // A wrapped legacy code is exactly 47 plaintext bytes plus the GCM authentication tag.
   if(e?.v!==1||typeof e.iv!=='string'||!/^[A-Za-z0-9_-]{16}$/.test(e.iv)||typeof e.ciphertext!=='string'||!/^[A-Za-z0-9_-]{84}$/.test(e.ciphertext))return json({error:'同步码数据格式不正确'},400);
   return ctx.storage.transactionSync(()=>{
-    if(ctx.storage.sql.exec('SELECT id FROM short_code WHERE id = 1').toArray().length)return json({error:'同步码已占用，请重试'},409);
+    if(ctx.storage.sql.exec('SELECT id FROM short_code WHERE id = 1').toArray().length)return json({error:'这个同步名或同步码已被占用，请换一个'},409);
     ctx.storage.sql.exec('INSERT INTO short_code (id, envelope) VALUES (1, ?)',JSON.stringify({v:1,iv:e.iv,ciphertext:e.ciphertext}));
     return json({ok:true},201);
   });

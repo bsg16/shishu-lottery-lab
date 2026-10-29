@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newSyncCode,syncKeys,emptyDocument,encryptDocument,decryptDocument} from '../public/sync-model.js';
 import {newShortCode,shortCodeKeys,wrapSyncCode,unwrapSyncCode} from '../public/short-code.js';
+import {SyncClient} from '../public/sync-client.js';
 const endpoint=`${process.env.TEST_BASE_URL||'http://localhost:8787'}/api/vault`;
 test('real Worker and SQLite isolate vaults, validate requests, and reject stale writes',async()=>{
   const a=await syncKeys(newSyncCode()),b=await syncKeys(newSyncCode());
@@ -53,4 +54,21 @@ test('eight-character codes restore the same real vault and work through both si
   };
   await resolve(endpoint);
   if(process.env.TEST_PEER_BASE_URL)await resolve(process.env.TEST_PEER_BASE_URL);
+});
+test('custom Chinese names and changed names resolve the same vault across real site entrances',async()=>{
+  const device=base=>{
+    const values=new Map();let entries=[];
+    return new SyncClient({storage:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},fetcher:(path,options)=>fetch(new URL(path,base),options),getEntries:()=>entries,onEntries:next=>{entries=next;}});
+  };
+  const a=device(endpoint),b=device(process.env.TEST_PEER_BASE_URL||endpoint);
+  const name=`测试_${crypto.randomUUID().slice(0,8)}`,next=`${name}_new`;
+  try {
+    await a.create(name);const original=a.read().code;
+    await assert.rejects(b.create(name),/已被占用/);assert.equal(b.read(),null);
+    await b.connect(name.toUpperCase());assert.equal(b.read().code,original);
+    await a.setSyncName(next);assert.equal(a.displayCode(),next);
+    b.disconnect();await b.connect(next);assert.equal(b.read().code,original);
+    b.disconnect();await b.connect(name);assert.equal(b.read().code,original);
+    b.disconnect();await b.connect(original);assert.equal(b.read().code,original);
+  } finally {a.disconnect();b.disconnect();}
 });

@@ -1,5 +1,6 @@
 import { emptyDocument, entriesFrom, reconcileEntries, mergeDocuments, validateDocument, newSyncCode, normalizeCode, syncKeys, encryptDocument, decryptDocument, documentSignature } from './sync-model.js';
 import { newShortCode, formatShortCode, shortCodeKeys, wrapSyncCode, unwrapSyncCode } from './short-code.js';
+import { normalizeSyncName, syncNameKeys } from './sync-name.js';
 
 export const SYNC_STORE = 'shishu.sync.v1';
 export class SyncClient {
@@ -13,11 +14,20 @@ export class SyncClient {
   }
   persist(state) { this.storage.setItem(SYNC_STORE,JSON.stringify(state)); this.viewDoc=state.doc; this.onEntries(entriesFrom(state.doc)); }
   credentials(code) { if (!this.keys.has(code)) this.keys.set(code,syncKeys(code)); return this.keys.get(code); }
-  displayCode() { const state=this.read();return state?.shortCode?formatShortCode(state.shortCode):state?.code||''; }
+  displayCode() { const state=this.read();return state?.syncName|| (state?.shortCode?formatShortCode(state.shortCode):state?.code||''); }
   status(kind,message) { this.onStatus({kind,message}); }
   start() {
     try { const state=this.read(); if (state) { this.viewDoc=state.doc; this.onEntries(entriesFrom(state.doc)); void this.sync(); } else this.status('off','仅保存在本机 · 可启用云端同步'); }
     catch { this.status('error','同步设置无法读取，请用同步码重新连接；本机号码已保留'); }
+  }
+  storageChanged(oldValue) {
+    let previous;try{previous=JSON.parse(oldValue);}catch{}
+    const state=this.read();
+    if(previous?.code!==state?.code){this.epoch++;clearTimeout(this.timer);this.start();return;}
+    if(!state)return;
+    // Another tab already schedules its own upload. Reflect its state without starting a sync loop.
+    this.viewDoc=state.doc;this.onEntries(entriesFrom(state.doc));
+    this.status(state.dirty?'pending':'synced',state.dirty?'已保存到本机 · 等待同步':'云端已同步');
   }
   async request(code,method='GET',body) {
     const {token} = await this.credentials(code);
@@ -42,16 +52,42 @@ export class SyncClient {
     clearTimeout(this.timer); this.timer=setTimeout(()=>void this.sync(),350);
     return true;
   }
-  async create() {
+  async create(value) {
     if (this.read()) throw new Error('请先断开当前同步空间');
-    const epoch=this.epoch, code=newSyncCode(), {key}=await this.credentials(code);
+    const epoch=this.epoch,name=value===undefined?null:normalizeSyncName(value);
+    if(name) {
+      const {token}=await syncNameKeys(name);
+      let exists=true;
+      try{await this.authorizedRequest('/api/sync-code',token);}
+      catch(error){if(error.status!==404)throw error;exists=false;}
+      if(exists)throw new Error('这个同步名已被占用，请换一个；如果是你原来的名字，请在下方连接');
+    }
+    if(epoch!==this.epoch)return;
+    const code=newSyncCode(), {key}=await this.credentials(code);
     const doc=reconcileEntries(emptyDocument(),this.getEntries(),this.actor);
     const result=await this.request(code,'POST',{revision:0,envelope:await encryptDocument(doc,key)});
     if (epoch!==this.epoch) return;
     this.persist({code,doc:reconcileEntries(doc,this.getEntries(),this.actor),dirty:true,lastSyncedAt:result.updatedAt});
     await this.sync();
     if(epoch!==this.epoch||this.read()?.code!==code)return;
-    return this.shorten();
+    return name?this.setSyncName(name):this.shorten();
+  }
+  async setSyncName(value) {
+    const name=normalizeSyncName(value),initial=this.read();
+    if(!initial)throw new Error('请先连接原来的同步空间');
+    if(initial.syncName===name)return name;
+    const epoch=this.epoch,code=initial.code,{token,key}=await syncNameKeys(name);
+    const envelope=await wrapSyncCode(code,key);
+    try{await this.authorizedRequest('/api/sync-code',token,'POST',{envelope});}
+    catch(error){
+      if(error.status!==409)throw error;
+      // A lost registration response or a previously used name is safe to retry for the same vault.
+      const record=await this.authorizedRequest('/api/sync-code',token);
+      let existing;try{existing=await unwrapSyncCode(record.envelope,key);}catch{}
+      if(existing!==code)throw new Error('这个同步名已被占用，请换一个；当前号码库和同步方式均已保留');
+    }
+    const current=this.read();if(epoch!==this.epoch||current?.code!==code)return;
+    this.persist({...current,syncName:name});return name;
   }
   async shorten() {
     const initial=this.read();if(!initial)throw new Error('请先连接原来的同步空间');
@@ -69,11 +105,11 @@ export class SyncClient {
   }
   async connect(value) {
     if (this.read()) throw new Error('请先断开当前同步空间');
-    const epoch=this.epoch;let code,shortCode;
+    const epoch=this.epoch;let code,shortCode,syncName;
     if(String(value).trim().startsWith('SS1-'))code=normalizeCode(value);
     else {
-      shortCode=formatShortCode(value);
-      const shortKeys=await shortCodeKeys(shortCode);
+      try{shortCode=formatShortCode(value);}catch{syncName=normalizeSyncName(value);}
+      const shortKeys=shortCode?await shortCodeKeys(shortCode):await syncNameKeys(syncName);
       const record=await this.authorizedRequest('/api/sync-code',shortKeys.token);
       code=await unwrapSyncCode(record.envelope,shortKeys.key);
     }
@@ -81,8 +117,8 @@ export class SyncClient {
     const remote=await this.request(code), remoteDoc=await decryptDocument(remote.envelope,key);
     if (epoch!==this.epoch) return;
     const localDoc=reconcileEntries(emptyDocument(),this.getEntries(),this.actor);
-    this.persist({code,...(shortCode?{shortCode}:{}),doc:mergeDocuments(localDoc,remoteDoc),dirty:true,lastSyncedAt:remote.updatedAt});
-    await this.sync(); return shortCode||code;
+    this.persist({code,...(shortCode?{shortCode}:{}),...(syncName?{syncName}:{}),doc:mergeDocuments(localDoc,remoteDoc),dirty:true,lastSyncedAt:remote.updatedAt});
+    await this.sync(); return syncName||shortCode||code;
   }
   disconnect() {
     this.epoch++; clearTimeout(this.timer); this.requested=false; this.storage.removeItem(SYNC_STORE); this.keys.clear(); this.viewDoc=null;

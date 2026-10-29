@@ -76,7 +76,7 @@
     </section>
 
     <section id="view-saved" class="view-section" hidden>
-      <div class="section-title"><div><div class="eyebrow subtle">YOUR COLLECTION</div><h2>我的号码</h2><p class="muted">本机随时保存，启用私人同步码后可在不同设备恢复。</p></div><div class="button-group"><button id="export-saved" class="button button-outline">导出备份 ↓</button><label class="button button-outline file-label">导入备份 ↑<input id="import-saved" type="file" accept=".json,application/json" class="visually-hidden"></label></div></div>
+      <div class="section-title"><div><div class="eyebrow subtle">YOUR COLLECTION</div><h2>我的号码</h2><p class="muted">本机随时保存，自定义同步名后可在不同设备恢复。</p></div><div class="button-group"><button id="export-saved" class="button button-outline">导出备份 ↓</button><label class="button button-outline file-label">导入备份 ↑<input id="import-saved" type="file" accept=".json,application/json" class="visually-hidden"></label></div></div>
       <div class="cloud-bar panel"><div><strong>你的私人云端号码库</strong><p id="cloud-status" role="status">仅保存在本机 · 可启用云端同步</p></div><div class="button-group"><button id="cloud-now" class="button button-outline" disabled>立即同步 ↻</button><button id="cloud-manage" class="button button-dark">启用云端同步 ↗</button></div></div>
       <div id="saved-list"></div>
     </section>
@@ -118,21 +118,21 @@
     <div class="dialog-head"><div><div class="eyebrow subtle">YOUR PRIVATE CLOUD</div><h2>把号码带到另一台设备</h2></div><button class="close-button" data-close="cloud-dialog" aria-label="关闭云端同步窗口">×</button></div>
     <p id="cloud-dialog-status" class="muted"></p>
     <div id="cloud-start">
-      <p class="cloud-description">用私人同步码连接手机和电脑。启用或连接时会合并本机号码，之后保存、删除和核对记录都会自动同步。</p>
-      <button id="cloud-create" class="button button-coral full-width field-space">首次使用 · 创建8位同步码</button>
-      <div class="cloud-divider">已经有同步码</div>
-      <form id="cloud-connect-form"><label class="field-label" for="cloud-input">输入其他设备上的私人同步码</label><input id="cloud-input" type="password" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="8位字母数字，也支持 SS1- 长码" required><button id="cloud-connect" type="submit" class="button button-dark full-width field-space">连接并合并号码 →</button></form>
+      <p class="cloud-description">像起昵称一样，给你的号码库起个同步名。其他设备输入同一个名字，就能恢复号码并自动同步。</p>
+      <form id="cloud-create-form" class="field-space"><label class="field-label" for="cloud-name">自定义同步名</label><input id="cloud-name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="例如：小川选号_27" aria-describedby="cloud-name-help" required><p id="cloud-name-help" class="cloud-description field-space">2–32个字符，支持中文、字母、数字、下划线和短横线；英文不区分大小写。名字已被使用时会提示更换。</p><button id="cloud-create" type="submit" class="button button-coral full-width field-space">用这个名字创建云端号码库</button></form>
+      <div class="cloud-divider">已经有同步名或同步码</div>
+      <form id="cloud-connect-form"><label class="field-label" for="cloud-input">输入其他设备上的同步名或同步码</label><input id="cloud-input" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="自定义名字、8位短码或 SS1- 长码" required><button id="cloud-connect" type="submit" class="button button-dark full-width field-space">连接并合并号码 →</button></form>
     </div>
     <div id="cloud-connected" hidden>
-      <label class="field-label" for="sync-code">你的私人同步码</label><input id="sync-code" type="password" readonly autocomplete="off" spellcheck="false">
-      <div class="button-group field-space"><button id="cloud-reveal" class="button button-outline">显示同步码</button><button id="cloud-copy" class="button button-dark">复制同步码</button></div>
+      <label class="field-label" id="sync-code-label" for="sync-code">你的同步名或同步码</label><input id="sync-code" type="password" readonly autocomplete="off" spellcheck="false">
+      <div class="button-group field-space"><button id="cloud-reveal" class="button button-outline">显示</button><button id="cloud-copy" class="button button-dark">复制</button></div>
       <p id="sync-code-hint" class="cloud-description"></p>
-      <button id="cloud-shorten" class="button button-coral full-width field-space" hidden>生成8位短码</button>
-      <p class="cloud-description field-space">请妥善保存。拥有此码的人可以读取和修改你的号码；同步码丢失后无法通过邮箱找回。号码备份文件不含同步码。</p>
+      <form id="cloud-name-form" class="field-space"><label class="field-label" for="cloud-new-name">给现有号码库设置同步名</label><input id="cloud-new-name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="自己起一个名字，例如：小川选号_27" aria-describedby="cloud-new-name-help" required><p id="cloud-new-name-help" class="cloud-description field-space">2–32个字符，可用中文、字母、数字、_ 和 -；英文不区分大小写。设置新名字后，原名字、旧码和已连接设备仍然有效。</p><button id="cloud-set-name" type="submit" class="button button-coral full-width field-space">保存这个同步名</button></form>
       <button id="cloud-disconnect" class="danger-link field-space">断开此设备的云端同步</button><p class="fine-print">断开只移除此设备的连接，本机和云端号码均会保留。共享设备使用完后请清理本机记录。</p>
     </div>
     <p id="cloud-error" class="inline-error" role="alert" hidden></p>
-    <p class="fine-print">号码加密后存入云端，同步码不会上传。离线时先保存在本机，恢复网络或再次打开页面时重试；也可点击“立即同步”。</p>
+    <p class="cloud-description field-space">同步名就是号码库的钥匙，知道它的人可以读取和修改号码。请避开常见昵称并妥善保管；丢失后无法通过邮箱找回，号码备份也不含同步名或同步码。</p>
+    <p class="fine-print">号码加密后存入云端，同步名和同步码不会明文上传。离线时先保存在本机，恢复网络或再次打开页面时重试；也可点击“立即同步”。</p>
   </dialog>
 
   <dialog id="check-dialog">
@@ -149,6 +149,6 @@
     <p class="fine-print">只核对常规奖级，不计福运奖或派奖。大乐透追加仅影响一、二等奖；奖金及兑奖以官方公告为准。</p>
   </dialog>
 
-  <dialog id="about-dialog"><div class="dialog-head"><div><div class="eyebrow subtle">THE METHOD</div><h2>让每个结果，都有出处</h2></div><button class="close-button" data-close="about-dialog" aria-label="关闭说明窗口">×</button></div><div class="about-content"><h3>数据从哪里来</h3><p>双色球来源于中国福彩网，大乐透来源于江苏和甘肃体彩。近期官方开奖与内置历史快照合并展示；页面前台每5分钟补查，核奖时主动刷新。数据源不可用时会明确提示。</p><p><a href="https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/" target="_blank" rel="noopener">中国福彩网 ↗</a> · <a href="https://www.gstc.org.cn/wanfa/dlt_history" target="_blank" rel="noopener">甘肃体彩网 ↗</a> · <a href="https://api.js-lottery.com/wfzq/dlt/data" target="_blank" rel="noopener">江苏体彩网 ↗</a></p><h3>如何生成参考号码</h3><p>随机模式均匀抽样；热号、冷号和遗漏模式按最近50期的统计值加权抽样。加权改变的是选号偏好，不能据此声称提高中奖率。蓝球分散与后区组合分散优先避免重复覆盖。</p><h3>核对规则</h3><p>双色球只计六个常规奖级。大乐透第26014期起使用七奖级，此前本数据范围内使用九奖级；复式按其包含的每注基本组合核对，倍投计入中奖注数。同一基本注只计最高奖级。</p><p><a href="https://www.scflcp.com.cn/yxgz/823145252.jhtml" target="_blank" rel="noopener">双色球规则 ↗</a> · <a href="https://m.lottery.gov.cn/ksjz/m/yxgz_dlt/" target="_blank" rel="noopener">大乐透规则 ↗</a></p><h3>你的号码存在哪里</h3><p>默认保存在当前浏览器。启用私人同步码后，号码与核对记录会加密保存到云端，其他设备输入同一码即可合并恢复。同步码不会上传，请妥善保管；也可使用“导出备份”留存号码。手动核对结果会标明来源，不能代替官方兑奖。</p><h3>研究边界</h3><p>五年研究覆盖大乐透752期、双色球753期，并校正了一条经正式公告确认的日期错误。回测按时间顺序进行，未发现三种固定策略显著优于随机；本结果不构成盈利承诺。</p></div></dialog>
+  <dialog id="about-dialog"><div class="dialog-head"><div><div class="eyebrow subtle">THE METHOD</div><h2>让每个结果，都有出处</h2></div><button class="close-button" data-close="about-dialog" aria-label="关闭说明窗口">×</button></div><div class="about-content"><h3>数据从哪里来</h3><p>双色球来源于中国福彩网，大乐透来源于江苏和甘肃体彩。近期官方开奖与内置历史快照合并展示；页面前台每5分钟补查，核奖时主动刷新。数据源不可用时会明确提示。</p><p><a href="https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/" target="_blank" rel="noopener">中国福彩网 ↗</a> · <a href="https://www.gstc.org.cn/wanfa/dlt_history" target="_blank" rel="noopener">甘肃体彩网 ↗</a> · <a href="https://api.js-lottery.com/wfzq/dlt/data" target="_blank" rel="noopener">江苏体彩网 ↗</a></p><h3>如何生成参考号码</h3><p>随机模式均匀抽样；热号、冷号和遗漏模式按最近50期的统计值加权抽样。加权改变的是选号偏好，不能据此声称提高中奖率。蓝球分散与后区组合分散优先避免重复覆盖。</p><h3>核对规则</h3><p>双色球只计六个常规奖级。大乐透第26014期起使用七奖级，此前本数据范围内使用九奖级；复式按其包含的每注基本组合核对，倍投计入中奖注数。同一基本注只计最高奖级。</p><p><a href="https://www.scflcp.com.cn/yxgz/823145252.jhtml" target="_blank" rel="noopener">双色球规则 ↗</a> · <a href="https://m.lottery.gov.cn/ksjz/m/yxgz_dlt/" target="_blank" rel="noopener">大乐透规则 ↗</a></p><h3>你的号码存在哪里</h3><p>默认保存在当前浏览器。设置自定义同步名后，号码与核对记录会加密保存到云端，其他设备输入同名即可合并恢复，也兼容原同步码。同步名相当于钥匙，不会明文上传，请妥善保管；也可使用“导出备份”留存号码。手动核对结果会标明来源，不能代替官方兑奖。</p><h3>研究边界</h3><p>五年研究覆盖大乐透752期、双色球753期，并校正了一条经正式公告确认的日期错误。回测按时间顺序进行，未发现三种固定策略显著优于随机；本结果不构成盈利承诺。</p></div></dialog>
 </body>
 </html>
