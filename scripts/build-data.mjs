@@ -6,6 +6,7 @@ const latest = JSON.parse(await fs.readFile(new URL('../data/latest-draws.json',
 const ssqPrizes = new Map(ssqRaw.response.result.map(r => [r.code, Object.fromEntries(r.prizegrades.filter(p => Number(p.type) <= 6).map(p => [String(p.type), Number(String(p.typemoney).replaceAll(',', '')) || null]))]));
 const payload = { snapshotDate: analysis.end, sources: {
   ssq: 'https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/',
+  ssqBackup: 'https://www.scflcp.com.cn/ssq',
   dlt: 'https://api.js-lottery.com/wfzq/dlt/data',
   dltHistory: 'https://www.gstc.org.cn/wanfa/dlt_history'
 }, games: {} };

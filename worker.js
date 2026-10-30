@@ -11,7 +11,7 @@ export default {
     if (url.pathname === '/api/vault') return vaultRequest(request,env);
     if (url.pathname === '/api/sync-code') return syncCodeRequest(request,env);
     if (request.method !== 'GET') return responseJSON({error:'仅支持查询'},405);
-    if (url.pathname === '/api/health') return responseJSON({ok:true,version:'1.4.0'});
+    if (url.pathname === '/api/health') return responseJSON({ok:true,version:'1.4.1'});
     if (url.pathname !== '/api/draws') return responseJSON({error:'未找到'},404);
     return drawsResponse(request,ctx);
   }
