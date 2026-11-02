@@ -1,7 +1,10 @@
+import { KL8_PRIZES, kl8Distribution } from './kl8.js';
 export const GAMES = {
   ssq: { name: '双色球', mainN: 33, mainK: 6, extraN: 16, extraK: 1, mainLabel: '红球', extraLabel: '蓝球', total: 17721088 },
-  dlt: { name: '大乐透', mainN: 35, mainK: 5, extraN: 12, extraK: 2, mainLabel: '前区', extraLabel: '后区', total: 21425712 }
+  dlt: { name: '大乐透', mainN: 35, mainK: 5, extraN: 12, extraK: 2, mainLabel: '前区', extraLabel: '后区', total: 21425712 },
+  kl8: { name: '快乐8', mainN: 80, mainK: 10, drawK: 20, extraN: 0, extraK: 0, mainLabel: '号码', extraLabel: '' }
 };
+export const gameConfig = entry => entry.game==='kl8' ? {...GAMES.kl8,mainK:entry.pick} : GAMES[entry.game];
 export const pad = n => String(n).padStart(2, '0');
 export function choose(n, k) {
   if (!Number.isInteger(n) || !Number.isInteger(k) || k < 0 || n < 0 || k > n) return 0;
@@ -14,7 +17,8 @@ export function canonicalIssue(game, value) {
   if (s.endsWith('000')) throw new Error('期号末三位不能为000');
   if (game === 'dlt' && /^20\d{5}$/.test(s)) return s.slice(2);
   if (game === 'dlt' && /^\d{5}$/.test(s)) return s;
-  if (game === 'ssq' && /^20\d{5}$/.test(s)) return s;
+  if (['ssq','kl8'].includes(game) && /^20\d{5}$/.test(s)) return s;
+  if (game === 'kl8') throw new Error('快乐8期号应为7位，例如2026291');
   throw new Error(game === 'ssq' ? '双色球期号应为7位，例如2026122' : '大乐透期号应为5位，例如26122');
 }
 export function validateNumbers(numbers, n, min, max = min) {
@@ -22,24 +26,32 @@ export function validateNumbers(numbers, n, min, max = min) {
 }
 export function validateDraw(game, draw) {
   const cfg = GAMES[game];
-  return !!cfg && !!draw && validateNumbers(draw.main, cfg.mainN, cfg.mainK) && validateNumbers(draw.extra, cfg.extraN, cfg.extraK);
+  return !!cfg && !!draw && validateNumbers(draw.main, cfg.mainN, cfg.drawK || cfg.mainK) && validateNumbers(draw.extra, cfg.extraN, cfg.extraK);
 }
 export function validateEntry(entry) {
-  const cfg = GAMES[entry?.game];
+  if(entry?.game==='kl8' && (!Number.isInteger(entry.pick)||entry.pick<1||entry.pick>10||entry.multiplier>15))return false;
+  const cfg = entry && gameConfig(entry);
   if (!cfg || !['single', 'compound'].includes(entry.mode) || !Number.isInteger(entry.multiplier) || entry.multiplier < 1 || entry.multiplier > 99 || typeof entry.additional !== 'boolean') return false;
-  if (entry.game === 'ssq' && entry.additional) return false;
+  if (entry.game !== 'dlt' && entry.additional) return false;
   if (!Array.isArray(entry.tickets) || entry.tickets.length < 1 || entry.tickets.length > 50 || (entry.mode === 'compound' && entry.tickets.length !== 1)) return false;
-  return entry.tickets.every(t => validateNumbers(t.main, cfg.mainN, cfg.mainK, entry.mode === 'single' ? cfg.mainK : cfg.mainN) && validateNumbers(t.extra, cfg.extraN, cfg.extraK, entry.mode === 'single' ? cfg.extraK : cfg.extraN));
+  if(!entry.tickets.every(t => t && validateNumbers(t.main, cfg.mainN, cfg.mainK+(entry.game==='kl8'&&entry.mode==='compound'?1:0), entry.mode === 'single' ? cfg.mainK : cfg.mainN) && validateNumbers(t.extra, cfg.extraN, cfg.extraK, entry.mode === 'single' ? cfg.extraK : cfg.extraN)))return false;
+  return entry.game!=='kl8'||entry.tickets.reduce((sum,t)=>sum+choose(t.main.length,entry.pick),0)*entry.multiplier<=10000;
 }
 export function ticketKey(ticket) { return `${[...ticket.main].sort((a,b)=>a-b).join(',')}|${[...ticket.extra].sort((a,b)=>a-b).join(',')}`; }
 export function planTotals(entry) {
-  if (!validateEntry(entry)) throw new Error('方案参数不完整或号码不合法');
-  const g = GAMES[entry.game];
+  if (!validateEntry(entry)) throw new Error(entry?.game==='kl8'?'请检查快乐8玩法、号码和倍数（1–15倍）；复式含倍投不能超过10000注':'方案参数不完整或号码不合法');
+  const g = gameConfig(entry);
   const combinations = entry.tickets.reduce((sum,t) => sum + choose(t.main.length,g.mainK) * choose(t.extra.length,g.extraK), 0);
   const unique = entry.mode === 'single' ? new Set(entry.tickets.map(ticketKey)).size : combinations;
-  return { combinations, bets: combinations * entry.multiplier, cost: combinations * entry.multiplier * (entry.additional ? 3 : 2), jackpot: unique / g.total };
+  return { combinations, bets: combinations * entry.multiplier, cost: combinations * entry.multiplier * (entry.additional ? 3 : 2), jackpot: entry.game==='kl8'?null:unique / g.total,
+    ...(entry.game==='kl8'?{singleTop:kl8Distribution(entry.pick).at(-1).probability}:{}) };
 }
-export function prizeRank(game, main, extra, issue) {
+export function prizeRank(game, main, extra, issue, pick) {
+  if(game==='kl8') {
+    if(!Number.isInteger(pick)||!KL8_PRIZES[pick])throw new Error('快乐8玩法不合法');
+    if(Number(canonicalIssue(game,issue))<2025350)throw new Error('快乐8暂支持第2025350期起的常规规则核对');
+    return Object.hasOwn(KL8_PRIZES[pick],main)?`x${pick}z${main}`:0;
+  }
   if (game === 'ssq') {
     if (main === 6) return extra ? 1 : 2;
     if (main === 5) return extra ? 3 : 4;
@@ -58,14 +70,14 @@ export function prizeRank(game, main, extra, issue) {
 export function checkEntry(entry, draw) {
   if (!validateEntry(entry) || !validateDraw(entry.game, draw)) throw new Error('方案或开奖号码不合法');
   canonicalIssue(entry.game,draw.issue);
-  const g = GAMES[entry.game], ranks = {}, matches = [];
+  const g = gameConfig(entry), ranks = {}, matches = [];
   for (const ticket of entry.tickets) {
     const hitMain = ticket.main.filter(n => draw.main.includes(n)).length;
     const hitExtra = ticket.extra.filter(n => draw.extra.includes(n)).length;
     matches.push({ main: hitMain, extra: hitExtra });
     for (let a = 0; a <= g.mainK; a++) for (let b = 0; b <= g.extraK; b++) {
       const ways = choose(hitMain,a) * choose(ticket.main.length-hitMain,g.mainK-a) * choose(hitExtra,b) * choose(ticket.extra.length-hitExtra,g.extraK-b);
-      const rank = prizeRank(entry.game,a,b,draw.issue);
+      const rank = prizeRank(entry.game,a,b,draw.issue,entry.pick);
       if (ways && rank) ranks[rank] = (ranks[rank] || 0) + ways * entry.multiplier;
     }
   }
@@ -98,7 +110,8 @@ function weightedSample(values, size, weight, random) {
   return result;
 }
 export function generatePlan(options, draws = [], random = randomUnit) {
-  const g = GAMES[options.game];
+  const g = gameConfig(options);
+  if(options.game==='kl8'&&(!Number.isInteger(options.pick)||options.pick<1||options.pick>10))throw new Error('快乐8请选择选一至选十');
   if (!g || !['random','hot','cold','overdue'].includes(options.strategy)) throw new Error('请选择有效的彩种与选号方式');
   const count = options.mode === 'compound' ? 1 : options.count;
   const mainSize = options.mode === 'compound' ? options.mainSize : g.mainK;
@@ -116,7 +129,7 @@ export function generatePlan(options, draws = [], random = randomUnit) {
   for (let attempt = 0; tickets.length < count && attempt < 5000; attempt++) {
     const main = weightedSample(mainPool,mainSize,mainWeight,random).sort((a,b)=>a-b);
     let extra, pair;
-    if (options.spread && options.mode === 'single') {
+    if (g.extraK && options.spread && options.mode === 'single') {
       if (!remainingPairs.length) remainingPairs = [...extraPairs];
       pair = weightedSample(remainingPairs,1,p => p.reduce((v,n)=>v*extraWeight(n),1),random)[0];
       extra = [...pair];
@@ -127,11 +140,11 @@ export function generatePlan(options, draws = [], random = randomUnit) {
     if (pair) remainingPairs.splice(remainingPairs.indexOf(pair),1);
   }
   if (tickets.length !== count) throw new Error('本次未能生成足够的不同组合，请重试');
-  const result = { game: options.game, mode: options.mode, multiplier: options.multiplier, additional: options.game === 'dlt' && !!options.additional, strategy: options.strategy, tickets };
+  const result = { game: options.game, ...(options.game==='kl8'?{pick:options.pick}:{}), mode: options.mode, multiplier: options.multiplier, additional: options.game === 'dlt' && !!options.additional, strategy: options.strategy, tickets };
   planTotals(result);
   return result;
 }
-export function ticketText(entry) { return entry.tickets.map(t => `${t.main.map(pad).join(' ')} + ${t.extra.map(pad).join(' ')}`).join('\n'); }
+export function ticketText(entry) { return entry.tickets.map(t => `${t.main.map(pad).join(' ')}${t.extra.length?' + '+t.extra.map(pad).join(' '):''}`).join('\n'); }
 export function mergeDraws(game, existing, updates) {
   const map = new Map(existing.map(r=>[canonicalIssue(game,r.issue),r]));
   for (const r of updates) if (validateDraw(game,r) && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) map.set(canonicalIssue(game,r.issue),{...map.get(canonicalIssue(game,r.issue)),...r,issue:canonicalIssue(game,r.issue)});

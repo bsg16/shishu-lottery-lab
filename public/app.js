@@ -1,4 +1,5 @@
-import { GAMES, pad, choose, generatePlan, planTotals, ticketText, ticketKey, statistics, checkEntry, validateEntry, validateDraw, canonicalIssue, mergeDraws } from './domain.js';
+import { GAMES, pad, choose, generatePlan, planTotals, ticketText, ticketKey, statistics, checkEntry, validateEntry, validateDraw, canonicalIssue, mergeDraws, gameConfig } from './domain.js';
+import { kl8Name, kl8RankName, kl8Distribution } from './kl8.js';
 import { setupCloudSync } from './sync-ui.js';
 import { setupRules } from './rules.js';
 const $ = id => document.getElementById(id);
@@ -16,8 +17,8 @@ const odds = p => p >= 1 ? '100%' : `约 ${amount(Math.round(1 / p))} 分之一`
 const dateLabel = value => { const d = new Date(value); return Number.isNaN(d.valueOf()) ? '未知时间' : d.toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); };
 function toast(message) { clearTimeout(toastTimer); $('toast').textContent=message; $('toast').hidden=false; toastTimer=setTimeout(()=>$('toast').hidden=true,3500); }
 function errorAt(id,message) { $(id).textContent=message || ''; $(id).hidden=!message; }
-function balls(ticket) { return ticket.main.map(n=>`<span class="ball">${pad(n)}</span>`).join('') + '<span class="ball-divider" aria-hidden="true">＋</span>' + ticket.extra.map(n=>`<span class="ball extra">${pad(n)}</span>`).join(''); }
-function ticketRows(tickets,copy=false) { return tickets.map((ticket,i)=>`<div class="ticket-row"><span class="ticket-index">${pad(i+1)}</span><div class="ball-row" aria-label="${ticket.main.join('、')}，${ticket.extra.join('、')}">${balls(ticket)}</div>${copy?`<button class="copy-one" data-copy="${i}" aria-label="复制第${i+1}组">复制</button>`:''}</div>`).join(''); }
+function balls(ticket) { return ticket.main.map(n=>`<span class="ball">${pad(n)}</span>`).join('') + (ticket.extra.length?'<span class="ball-divider" aria-hidden="true">＋</span>':'') + ticket.extra.map(n=>`<span class="ball extra">${pad(n)}</span>`).join(''); }
+function ticketRows(tickets,copy=false) { return tickets.map((ticket,i)=>`<div class="ticket-row"><span class="ticket-index">${pad(i+1)}</span><div class="ball-row" aria-label="${ticket.main.join('、')}${ticket.extra.length?'，'+ticket.extra.join('、'):''}">${balls(ticket)}</div>${copy?`<button class="copy-one" data-copy="${i}" aria-label="复制第${i+1}组">复制</button>`:''}</div>`).join(''); }
 async function copy(text) {
   try { await navigator.clipboard.writeText(text); toast('号码已复制，不含序号'); }
   catch { const input=document.createElement('textarea'); input.value=text; document.body.append(input); input.select(); const ok=document.execCommand('copy'); input.remove(); toast(ok?'号码已复制':'复制不可用，请长按选择号码'); }
@@ -36,25 +37,32 @@ function writeSaved(next) {
   localStorage.setItem(STORE,JSON.stringify(next)); saved=next; renderSaved();
 }
 function options() {
-  return {game,mode,strategy:$('strategy').value,count:Number($('ticket-count').value),mainSize:Number($('main-size').value),extraSize:Number($('extra-size').value),multiplier:Number($('multiplier').value),additional:$('additional').checked,spread:$('spread').checked};
+  return {game,mode,pick:Number($('kl8-pick').value),strategy:$('strategy').value,count:Number($('ticket-count').value),mainSize:Number($('main-size').value),extraSize:Number($('extra-size').value),multiplier:Number($('multiplier').value),additional:$('additional').checked,spread:$('spread').checked};
 }
 function previewTotals() {
-  const o=options(),g=GAMES[game];
-  const placeholder={game,mode,multiplier:o.multiplier,additional:game==='dlt'&&o.additional,tickets:mode==='compound'?[{main:Array.from({length:Math.min(35,Math.max(0,o.mainSize))},(_,i)=>i+1),extra:Array.from({length:Math.min(16,Math.max(0,o.extraSize))},(_,i)=>i+1)}]:Array.from({length:Math.min(50,Math.max(0,o.count))},()=>({main:Array.from({length:g.mainK},(_,i)=>i+1),extra:Array.from({length:g.extraK},(_,i)=>i+1)}))};
+  const o=options(),g=gameConfig(o);
+  const placeholder={game,mode,...(game==='kl8'?{pick:o.pick}:{}),multiplier:o.multiplier,additional:game==='dlt'&&o.additional,tickets:mode==='compound'?[{main:Array.from({length:Math.min(g.mainN,Math.max(0,o.mainSize))},(_,i)=>i+1),extra:Array.from({length:Math.min(g.extraN,Math.max(0,o.extraSize))},(_,i)=>i+1)}]:Array.from({length:Math.min(50,Math.max(0,o.count))},()=>({main:Array.from({length:g.mainK},(_,i)=>i+1),extra:Array.from({length:g.extraK},(_,i)=>i+1)}))};
   if((mode==='single'&&(!Number.isInteger(o.count)||o.count<1||o.count>50))||(mode==='compound'&&(!Number.isInteger(o.mainSize)||!Number.isInteger(o.extraSize)))) throw new Error('请输入有效的整数');
+  if(mode==='compound'&&(o.mainSize<g.mainK+(game==='kl8'?1:0)||o.mainSize>g.mainN||o.extraSize<g.extraK||o.extraSize>g.extraN))throw new Error('请检查复式号码数量范围');
   const totals=planTotals(placeholder);
   // Generated single tickets are unique; the dummy preview is not a real set.
-  if(mode==='single')totals.jackpot=o.count/g.total;
+  if(mode==='single'&&game!=='kl8')totals.jackpot=o.count/g.total;
   return totals;
 }
 function renderConfig() {
   if(generationWorker){generationWorker.terminate();generationWorker=undefined;$('generate-button').disabled=false;$('generation-progress').textContent='参数已更改，请重新生成。';}
-  const g=GAMES[game];
+  const g=gameConfig(options()),isKl8=game==='kl8';
+  $('kl8-pick-wrap').hidden=!isKl8;
+  const coverageOption=$('strategy').querySelector('[value="coverage"]');coverageOption.disabled=isKl8;coverageOption.hidden=isKl8;
+  if(isKl8&&$('strategy').value==='coverage')$('strategy').value='random';
+  $('extra-size-wrap').hidden=isKl8;$('kl8-note').hidden=!isKl8;
+  $('multiplier').max=isKl8?15:99;$('multiplier-range').textContent=isKl8?'1–15 倍':'1–99 倍';
+  $('plan-probability-label').textContent=isKl8?'每基本注全部命中概率':'一等奖命中概率';
   $('single-inputs').hidden=mode!=='single';$('compound-inputs').hidden=mode!=='compound';
-  $('ticket-count').disabled=mode!=='single';$('main-size').disabled=mode!=='compound';$('extra-size').disabled=mode!=='compound';
-  $('additional-wrap').hidden=game!=='dlt';$('spread-wrap').hidden=mode!=='single'||$('strategy').value==='coverage';
+  $('ticket-count').disabled=mode!=='single';$('main-size').disabled=mode!=='compound';$('extra-size').disabled=mode!=='compound'||isKl8;
+  $('additional-wrap').hidden=game!=='dlt';$('spread-wrap').hidden=isKl8||mode!=='single'||$('strategy').value==='coverage';
   $('main-size-label').textContent=`${g.mainLabel}数量`;$('extra-size-label').textContent=`${g.extraLabel}数量`;
-  $('main-size').min=g.mainK;$('main-size').max=g.mainN;$('extra-size').min=g.extraK;$('extra-size').max=g.extraN;
+  $('main-size').min=g.mainK+(isKl8?1:0);$('main-size').max=g.mainN;$('extra-size').min=g.extraK;$('extra-size').max=g.extraN;
   $('spread-label').innerHTML=game==='ssq'?'尽量分散蓝球 <small>优先覆盖不同蓝球号码</small>':'分散后区组合 <small>优先选择不同的后区两数组合</small>';
   const coverageDescription=mode==='compound'?'同一复式规模的号码具有相同中奖概率，生成后精确计算常规奖覆盖。':game==='ssq'?'以至少中一次常规奖为目标，构造达到该注数概率上限的组合。含小奖，不保证回本。':'固定注数比较候选方案，增加常规奖覆盖。精确计算概率，尚未证明全局最优。';
   const descriptions={coverage:coverageDescription,random:'每个号码均匀抽取，整组号码自动去重。',hot:'近50期出现越多，抽样权重越高；不代表下期更易开出。',cold:'近50期出现越少，抽样权重越高；不代表“该出了”。',overdue:'近50期遗漏越长，抽样权重越高；不代表即将补出。'};
@@ -64,14 +72,17 @@ function renderConfig() {
     const t=previewTotals(),unit=game==='dlt'&&$('additional').checked?3:2;
     $('plan-cost').innerHTML=`¥${amount(t.cost)}<small>.00</small>`;
     $('plan-detail').textContent=`${amount(t.combinations)} 注 × ${unit} 元 × ${$('multiplier').value} 倍`;
-    $('plan-probability').textContent=odds(t.jackpot);errorAt('form-error','');
+    $('plan-probability').textContent=odds(isKl8?t.singleTop:t.jackpot);errorAt('form-error','');
   } catch { $('plan-cost').textContent='—';$('plan-detail').textContent='请检查输入范围';$('plan-probability').textContent='—'; }
 }
+function planLabel(p) {return (p.game==='kl8'?kl8Name(p.pick)+' · ':'')+(p.mode==='compound'?(p.game==='kl8'?p.tickets[0].main.length+'号码复式':p.tickets[0].main.length+' + '+p.tickets[0].extra.length+' 复式'):p.tickets.length+' 注单式');}
 function renderPlan() {
   const p=currentPlan,t=planTotals(p),g=GAMES[p.game];
-  $('result-tag').textContent=p.mode==='compound'?`${p.tickets[0].main.length} + ${p.tickets[0].extra.length} 复式`:`${p.tickets.length} 注单式`;
+  $('result-tag').textContent=planLabel(p);
   $('generation-meta').textContent=`${strategyNames[p.strategy]||'参考选号'} · ${g.name} · ${p.multiplier} 倍${p.game==='dlt'?p.additional?' · 已追加':' · 不追加':''} · 共 ${amount(t.cost)} 元`;
   $('results').innerHTML=ticketRows(p.tickets,true);$('save-plan').disabled=false;$('save-plan').innerHTML='保存本组号码 <span aria-hidden="true">＋</span>';
+  $('kl8-plan-summary').hidden=p.game!=='kl8';
+  if(p.game==='kl8'){const distribution=kl8Distribution(p.pick);$('kl8-plan-summary').textContent=`${kl8Name(p.pick)}每基本注中任意常规奖的理论概率 ${(distribution.filter(r=>r.wins).reduce((v,r)=>v+r.probability,0)*100).toFixed(3)}%。这是单注概率，不是本组至少中奖一次的概率；多注之间通常相关。中奖包含小奖${p.pick>=7?'及返还2元的情形':''}，不保证回本。`;}
   const coverage=p.coverage;$('coverage-summary').hidden=!coverage;
   if(coverage){
     const percent=n=>(n*100).toFixed(2)+'%';
@@ -104,10 +115,10 @@ function generate() {
 function setGame(next) {
   if(!GAMES[next])return;
   const changed=next!==game;game=next;
-  if(changed){$('main-size').value=game==='ssq'?7:6;$('extra-size').value=game==='ssq'?2:3;$('additional').checked=false;$('target-issue').value='';historyLimit=20;}
+  if(changed){$('main-size').value=game==='kl8'?Number($('kl8-pick').value)+1:game==='ssq'?7:6;$('extra-size').value=game==='kl8'?0:game==='ssq'?2:3;if(game==='kl8')$('multiplier').value=Math.min(15,Number($('multiplier').value)||1);$('additional').checked=false;$('target-issue').value='';historyLimit=20;}
   all('[data-game]').forEach(b=>{b.classList.toggle('active',b.dataset.game===game);b.setAttribute('aria-pressed',b.dataset.game===game);});
-  renderConfig();renderLatest();renderHistory();rules?.render(game);
-  if(changed && currentPlan)generate();
+  renderConfig();renderLatest();renderHistory();rules?.render(game,game==='kl8'?Number($('kl8-pick').value):undefined);
+  if(changed)generate();
   if(Date.now()-(lastAttempt[game]||0)>=REFRESH_INTERVAL)refreshData(game);
 }
 function setView(next) {
@@ -115,7 +126,7 @@ function setView(next) {
   all('.view-section').forEach(el=>el.hidden=el.id!==`view-${next}`);
   all('nav [data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===next);if(b.dataset.view===next)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   if(location.hash!==`#${next}`)history.replaceState(null,'',`#${next}`);
-  if(next==='saved')renderSaved();if(next==='history')renderHistory();if(next==='rules')rules?.render(game);
+  if(next==='saved')renderSaved();if(next==='history')renderHistory();if(next==='rules')rules?.render(game,game==='kl8'?Number($('kl8-pick').value):undefined);
   window.scrollTo(0,0);
 }
 function renderLatest() {
@@ -145,24 +156,31 @@ function renderSaved() {
   $('saved-count').textContent=saved.length;
   if(!saved.length){$('saved-list').innerHTML='<div class="empty-state"><div class="empty-symbol" aria-hidden="true">✦</div><h3>把期待，留在这里</h3><p>生成一组参考号码并保存，开奖后就能回来核对。</p><button class="button button-dark" data-view="generate">去生成一组 →</button></div>';return;}
   $('saved-list').innerHTML=[...saved].reverse().map(entry=>{
-    const g=GAMES[entry.game],t=planTotals(entry),label=entry.mode==='compound'?`${entry.tickets[0].main.length} + ${entry.tickets[0].extra.length} 复式`:`${entry.tickets.length} 注单式`;
+    const g=GAMES[entry.game],t=planTotals(entry),label=planLabel(entry);
     const check=entry.lastCheck;const status=check?`${check.manual?'手动核对 · ':''}${check.issue} 期 · ${check.winningBets?'中 '+check.winningBets+' 注':'未中常规奖'}`:'尚未核对';
     return `<article class="panel saved-card"><div class="saved-card-head"><div><h3>${g.name} <span class="muted">/</span> ${label}</h3><p class="saved-meta">${escape(dateLabel(entry.createdAt))} · ${entry.multiplier} 倍${entry.additional?' · 已追加':''} · ${amount(t.cost)} 元${entry.targetIssue?' · 目标 '+escape(entry.targetIssue)+' 期':''}</p></div><span class="saved-status ${check?.winningBets?'won':''}">${escape(status)}</span></div><div class="saved-preview"><div class="ball-row">${balls(entry.tickets[0])}</div>${entry.tickets.length>1?`<span>及另外 ${entry.tickets.length-1} 注</span>`:''}</div>${entry.tickets.length>1?`<details><summary>展开全部号码</summary>${ticketRows(entry.tickets)}</details>`:''}<div class="saved-actions"><div class="button-group"><button class="button button-dark" data-check="${escape(entry.id)}">核对开奖 →</button><button class="button button-outline" data-export="${escape(entry.id)}">导出号码 ↓</button></div><button class="danger-link" data-delete="${escape(entry.id)}">删除方案</button></div></article>`;
   }).join('');
 }
 function renderHistory() {
   if(!data)return;
-  const g=GAMES[game],info=data.games[game],zone=$('frequency-zone').value;
+  const g=GAMES[game],info=data.games[game];
+  if(game==='kl8')$('frequency-zone').value='main';
+  $('frequency-zone').hidden=game==='kl8';const zone=$('frequency-zone').value;
   $('frequency-zone').options[0].textContent=g.mainLabel;$('frequency-zone').options[1].textContent=g.extraLabel;
   const sample=$('frequency-window').value==='all'?info.draws.length:Number($('frequency-window').value);
   const stats=statistics(info.draws,game,zone,sample),min=Math.min(...stats.map(s=>s.count)),max=Math.max(...stats.map(s=>s.count));
-  const actual=Math.min(sample,info.draws.length),n=zone==='main'?g.mainN:g.extraN,k=zone==='main'?g.mainK:g.extraK;
+  const actual=Math.min(sample,info.draws.length),n=zone==='main'?g.mainN:g.extraN,k=zone==='main'?(g.drawK||g.mainK):g.extraK;
   $('frequency-caption').textContent=`${actual} 期样本 · 每个号码理论平均 ${(actual*k/n).toFixed(1)} 次`;
   $('frequency-grid').innerHTML=stats.map(s=>`<button class="frequency-tile" data-number="${s.number}" aria-label="${pad(s.number)}号，出现${s.count}次，当前遗漏${s.omission}期" aria-pressed="false" style="--strength:${8+Math.round(35*(s.count-min)/(max-min||1))}%"><strong>${pad(s.number)}</strong><span>${s.count} 次</span></button>`).join('');
   $('frequency-detail').textContent='选择一个号码查看详情。';
-  $('study-range').textContent=`研究区间 ${info.study.from}—${info.study.to} · ${info.study.count} 期`;
+  $('study-card').hidden=!info.study;
+  if(info.study){$('study-range').textContent=`研究区间 ${info.study.from}—${info.study.to} · ${info.study.count} 期`;
   $('study-table').innerHTML=info.study.backtests.map(row=>`<tr><td>${escape(row.name)}</td><td>${row.mean.toFixed(3)}</td><td>${row.baseline.toFixed(3)}</td></tr>`).join('');
-  $('single-jackpot').textContent=`1 / ${amount(g.total)}`;$('single-any').textContent=game==='ssq'?'6.709%':'6.670%';
+  }
+  const pick=Number($('kl8-pick').value),distribution=kl8Distribution(pick);
+  $('single-top-label').textContent=game==='kl8'?kl8Name(pick)+'全部命中':'一等奖';
+  $('single-probability-caption').textContent=game==='kl8'?`${kl8Name(pick)} · 每基本注2元 · 仅常规奖项`:'2元基本投注 · 仅常规奖项';
+  $('single-jackpot').textContent=game==='kl8'?odds(distribution.at(-1).probability):`1 / ${amount(g.total)}`;$('single-any').textContent=game==='kl8'?(distribution.filter(r=>r.wins).reduce((v,r)=>v+r.probability,0)*100).toFixed(3)+'%':game==='ssq'?'6.709%':'6.670%';
   $('history-source').textContent=`来源：${info.sourceName||(game==='ssq'?'中国福彩网':'甘肃体彩网')} · 历史记录含内置快照`;
   $('history-table').innerHTML=info.draws.slice(0,historyLimit).map(row=>`<tr><td>${escape(row.issue)}<small>${escape(row.date)}</small></td><td><div class="ball-row">${balls(row)}</div></td></tr>`).join('');
   $('history-more').hidden=historyLimit>=info.draws.length;
@@ -170,10 +188,11 @@ function renderHistory() {
 function openCheck(id) {
   activeEntry=saved.find(r=>r.id===id);if(!activeEntry)return;
   const g=GAMES[activeEntry.game];manualCheck=false;
-  $('check-plan-label').textContent=`${g.name} · ${planTotals(activeEntry).combinations} 注基本组合 · ${activeEntry.multiplier} 倍${activeEntry.additional?' · 已追加':''}`;
+  $('check-plan-label').textContent=`${g.name}${activeEntry.game==='kl8'?' · '+kl8Name(activeEntry.pick):''} · ${planTotals(activeEntry).combinations} 注基本组合 · ${activeEntry.multiplier} 倍${activeEntry.additional?' · 已追加':''}`;
   $('check-issue').value='';
   $('manual-issue').value=activeEntry.targetIssue||'';$('manual-main').value='';$('manual-extra').value='';
-  $('manual-main-label').textContent=`${g.mainLabel}号码（${g.mainK}个）`;$('manual-extra-label').textContent=`${g.extraLabel}号码（${g.extraK}个）`;
+  $('manual-main-label').textContent=`${g.mainLabel}（${g.drawK||g.mainK}个）`;$('manual-extra-label').textContent=`${g.extraLabel}号码（${g.extraK}个）`;
+  $('manual-extra-label').hidden=activeEntry.game==='kl8';$('manual-extra').hidden=activeEntry.game==='kl8';
   $('check-result').innerHTML='';errorAt('check-error','');renderCheckMode();$('check-dialog').showModal();renderCheckData();refreshData(activeEntry.game,true);
 }
 function renderCheckData() {
@@ -200,11 +219,11 @@ function parseNumbers(value) { return value.trim().split(/[\s,，、;；]+/).fil
 function performCheck() {
   try {
     errorAt('check-error','');let draw;
-    if(manualCheck){draw={issue:canonicalIssue(activeEntry.game,$('manual-issue').value),main:parseNumbers($('manual-main').value),extra:parseNumbers($('manual-extra').value)};if(!validateDraw(activeEntry.game,draw))throw new Error('请检查开奖号码的数量、范围与重复号码');}
+    if(manualCheck){draw={issue:canonicalIssue(activeEntry.game,$('manual-issue').value),main:parseNumbers($('manual-main').value),extra:activeEntry.game==='kl8'?[]:parseNumbers($('manual-extra').value)};if(!validateDraw(activeEntry.game,draw))throw new Error('请检查开奖号码的数量、范围与重复号码');}
     else{draw=data.games[activeEntry.game].draws.find(r=>r.issue===$('check-issue').value);if(!draw)throw new Error('请先选择对应的开奖期号');}
     if(activeEntry.targetIssue&&activeEntry.targetIssue!==draw.issue)throw new Error(`该方案目标为 ${activeEntry.targetIssue} 期，请选择相同期号核对`);
     const result=checkEntry(activeEntry,draw);
-    const ranks=Object.entries(result.ranks).map(([rank,count])=>`<div><span>${rankNames[rank]}</span><strong>${amount(count)} 注</strong></div>`).join('');
+    const ranks=Object.entries(result.ranks).map(([rank,count])=>`<div><span>${activeEntry.game==='kl8'?kl8RankName(rank):rankNames[rank]}</span><strong>${amount(count)} 注</strong></div>`).join('');
     const money=result.allAmountsKnown?`按该期公告奖金合计 ¥${amount(result.knownAmount)}（税前）`:result.winningBets?'已确认奖级与注数，奖金请查对应期开奖公告。':'';
     $('check-result').innerHTML=`<div class="check-summary ${result.winningBets?'won':''}"><h3>${result.winningBets?'中得 '+amount(result.winningBets)+' 注常规奖':'未中常规奖'}</h3><p>第 ${escape(draw.issue)} 期 · ${manualCheck?'手动输入奖号':'已收录官方开奖'}</p><div class="check-ranks">${ranks}</div>${result.additionalWinningBets?`<p>其中 ${result.additionalWinningBets} 注享有追加奖金权益。</p>`:''}<p>${money}</p><small>方案金额 ¥${amount(result.total.cost)} · 倍投已计入中奖注数${activeEntry.game==='dlt'?' · '+(Number(draw.issue)>=26014?'七奖级规则':'历史九奖级规则'):''}</small></div>`;
     const lastCheck={issue:draw.issue,manual:manualCheck,winningBets:result.winningBets,ranks:result.ranks,checkedAt:new Date().toISOString()};
@@ -216,7 +235,7 @@ function safeImported(raw) {
   return raw.entries.map(entry=>{
     if(!validateEntry(entry))throw new Error('备份包含不合法的号码或投注参数');
     let targetIssue='';if(entry.targetIssue)targetIssue=canonicalIssue(entry.game,entry.targetIssue);
-    return {id:crypto.randomUUID(),game:entry.game,mode:entry.mode,multiplier:entry.multiplier,additional:entry.additional,strategy:Object.hasOwn(strategyNames,entry.strategy)?entry.strategy:'random',tickets:entry.tickets.map(t=>({main:[...t.main].sort((a,b)=>a-b),extra:[...t.extra].sort((a,b)=>a-b)})),targetIssue,createdAt:typeof entry.createdAt==='string'&&!Number.isNaN(Date.parse(entry.createdAt))?entry.createdAt:new Date().toISOString()};
+    return {id:crypto.randomUUID(),game:entry.game,...(entry.game==='kl8'?{pick:entry.pick}:{}),mode:entry.mode,multiplier:entry.multiplier,additional:entry.additional,strategy:Object.hasOwn(strategyNames,entry.strategy)?entry.strategy:'random',tickets:entry.tickets.map(t=>({main:[...t.main].sort((a,b)=>a-b),extra:[...t.extra].sort((a,b)=>a-b)})),targetIssue,createdAt:typeof entry.createdAt==='string'&&!Number.isNaN(Date.parse(entry.createdAt))?entry.createdAt:new Date().toISOString()};
   });
 }
 function wire() {
@@ -233,6 +252,7 @@ function wire() {
   });
   $('generate-form').addEventListener('submit',e=>{e.preventDefault();generate();});
   ['strategy','ticket-count','main-size','extra-size','multiplier','additional','spread'].forEach(id=>$(id).addEventListener('input',renderConfig));
+  $('kl8-pick').addEventListener('change',()=>{$('main-size').value=Number($('kl8-pick').value)+1;renderConfig();renderHistory();if(currentPlan)generate();});
   $('copy-all').addEventListener('click',()=>currentPlan&&copy(ticketText(currentPlan)));
   $('save-plan').addEventListener('click',()=>{
     if(!currentPlan)return;
@@ -251,7 +271,7 @@ function wire() {
   $('check-rules').addEventListener('click',()=>{
     if(!activeEntry)return;
     const issue=manualCheck?$('manual-issue').value:$('check-issue').value;
-    $('check-dialog').close();setGame(activeEntry.game);rules.selectIssue(activeEntry.game,issue);setView('rules');
+    $('check-dialog').close();setGame(activeEntry.game);setView('rules');rules.selectIssue(activeEntry.game,issue,activeEntry.pick);
   });
   ['about-button','footer-about'].forEach(id=>$(id).addEventListener('click',()=>$('about-dialog').showModal()));
   window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
@@ -262,7 +282,7 @@ function wire() {
 }
 async function init() {
   try {
-    const response=await fetch('/history.json');if(!response.ok)throw new Error();data=await response.json();
+    const response=await fetch('/history.json',{cache:'no-cache'});if(!response.ok)throw new Error();data=await response.json();
     try{const cached=JSON.parse(localStorage.getItem(CACHE)||'{}');for(const which of Object.keys(GAMES))if(Array.isArray(cached[which]))data.games[which].draws=mergeDraws(which,data.games[which].draws,cached[which]);}catch{}
     rules=setupRules();readSaved();wire();renderConfig();renderSaved();renderLatest();renderHistory();generate();setView(location.hash.slice(1)||'generate');refreshVisibleData();
     cloud=setupCloudSync({getEntries:()=>saved,onEntries:entries=>{saved=entries;try{localStorage.setItem(STORE,JSON.stringify(saved));}catch{}renderSaved();},notify:toast});

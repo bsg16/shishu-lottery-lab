@@ -12,7 +12,7 @@ function allCombinations(n,k) {
   visit(1);return result;
 }
 test('exact single coverage agrees with every official hit class',()=>{
-  for(const [game,g] of Object.entries(GAMES)){
+  for(const [game,g] of Object.entries(GAMES).filter(([game])=>game!=='kl8')){
     const t={main:Array.from({length:g.mainK},(_,i)=>g.mainN-i),extra:Array.from({length:g.extraK},(_,i)=>g.extraN-i)};
     let count=0;
     for(let a=0;a<=g.mainK;a++)for(let b=0;b<=g.extraK;b++)if(prizeRank(game,a,b,game==='ssq'?'2026125':'26125'))count+=choose(g.mainK,a)*choose(g.mainN-g.mainK,g.mainK-a)*choose(g.extraK,b)*choose(g.extraN-g.extraK,g.extraK-b);

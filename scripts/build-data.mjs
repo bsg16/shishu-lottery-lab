@@ -22,6 +22,11 @@ for (const [game, data] of Object.entries(analysis.games)) {
     payload.snapshotDate=[payload.snapshotDate,latest.games[game].checkedAt.slice(0,10)].sort().at(-1);
   }
 }
+if(!latest.games.kl8?.draws?.length)throw new Error('Missing KL8 snapshot; run npm run update:draws first.');
+payload.games.kl8={draws:mergeDraws('kl8',[],latest.games.kl8.draws),sourceName:latest.games.kl8.sourceName};
+payload.sources.kl8='https://www.cwl.gov.cn/ygkj/wqkjgg/kl8/';
+payload.sources.kl8Backup='https://www.scflcp.com.cn/kl8';
+payload.snapshotDate=[payload.snapshotDate,latest.games.kl8.checkedAt.slice(0,10)].sort().at(-1);
 await fs.mkdir(new URL('../public/', import.meta.url), { recursive: true });
 await fs.writeFile(new URL('../public/history.json', import.meta.url), JSON.stringify(payload));
 console.log(`Built public data: ${Object.values(payload.games).reduce((n, g) => n + g.draws.length, 0)} draws. No saved personal tickets included.`);

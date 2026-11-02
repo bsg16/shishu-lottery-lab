@@ -1,0 +1,447 @@
+{
+  "state": 0,
+  "message": "查询成功",
+  "Tflag": 0,
+  "result": [
+    {
+      "name": "快乐8",
+      "code": "2026291",
+      "detailsLink": "/c/2026/11/01/671671.shtml",
+      "videoLink": "/c/2026/11/01/671669.shtml",
+      "date": "2026-11-01(日)",
+      "week": "日",
+      "red": "03,13,16,21,24,26,29,34,40,42,50,54,58,59,60,61,64,66,67,78",
+      "blue": "",
+      "blue2": "",
+      "sales": "108733750",
+      "poolmoney": "68573187.86",
+      "content": "",
+      "addmoney": "",
+      "addmoney2": "",
+      "msg": "",
+      "z2add": "",
+      "m2add": "",
+      "fdjxp": "",
+      "gdjc": "223186671.40",
+      "gdjxp": "",
+      "kjhyjsx": "42,50,40,54,61,26,13,16,34,59,58,67,24,64,60,78,03,21,29,66",
+      "prizegrades": [
+        {
+          "type": "x10z10",
+          "typenum": "0",
+          "typemoney": "0"
+        },
+        {
+          "type": "x10z9",
+          "typenum": "23",
+          "typemoney": "8000"
+        },
+        {
+          "type": "x10z8",
+          "typenum": "679",
+          "typemoney": "720"
+        },
+        {
+          "type": "x10z7",
+          "typenum": "9076",
+          "typemoney": "80"
+        },
+        {
+          "type": "x10z6",
+          "typenum": "69491",
+          "typemoney": "5"
+        },
+        {
+          "type": "x10z5",
+          "typenum": "335858",
+          "typemoney": "3"
+        },
+        {
+          "type": "x10z0",
+          "typenum": "379140",
+          "typemoney": "2"
+        },
+        {
+          "type": "x9z9",
+          "typenum": "3",
+          "typemoney": "250000"
+        },
+        {
+          "type": "x9z8",
+          "typenum": "64",
+          "typemoney": "2000"
+        },
+        {
+          "type": "x9z7",
+          "typenum": "2132",
+          "typemoney": "225"
+        },
+        {
+          "type": "x9z6",
+          "typenum": "20717",
+          "typemoney": "22"
+        },
+        {
+          "type": "x9z5",
+          "typenum": "119583",
+          "typemoney": "5"
+        },
+        {
+          "type": "x9z4",
+          "typenum": "450936",
+          "typemoney": "3"
+        },
+        {
+          "type": "x9z0",
+          "typenum": "292284",
+          "typemoney": "2"
+        },
+        {
+          "type": "x8z8",
+          "typenum": "10",
+          "typemoney": "50000"
+        },
+        {
+          "type": "x8z7",
+          "typenum": "291",
+          "typemoney": "800"
+        },
+        {
+          "type": "x8z6",
+          "typenum": "5386",
+          "typemoney": "80"
+        },
+        {
+          "type": "x8z5",
+          "typenum": "44775",
+          "typemoney": "10"
+        },
+        {
+          "type": "x8z4",
+          "typenum": "213767",
+          "typemoney": "3"
+        },
+        {
+          "type": "x8z0",
+          "typenum": "276822",
+          "typemoney": "2"
+        },
+        {
+          "type": "x7z7",
+          "typenum": "23",
+          "typemoney": "8500"
+        },
+        {
+          "type": "x7z6",
+          "typenum": "1278",
+          "typemoney": "300"
+        },
+        {
+          "type": "x7z5",
+          "typenum": "20011",
+          "typemoney": "30"
+        },
+        {
+          "type": "x7z4",
+          "typenum": "129776",
+          "typemoney": "4"
+        },
+        {
+          "type": "x7z0",
+          "typenum": "373201",
+          "typemoney": "2"
+        },
+        {
+          "type": "x6z6",
+          "typenum": "474",
+          "typemoney": "2880"
+        },
+        {
+          "type": "x6z5",
+          "typenum": "14335",
+          "typemoney": "30"
+        },
+        {
+          "type": "x6z4",
+          "typenum": "156881",
+          "typemoney": "10"
+        },
+        {
+          "type": "x6z3",
+          "typenum": "775245",
+          "typemoney": "3"
+        },
+        {
+          "type": "x5z5",
+          "typenum": "8737",
+          "typemoney": "1000"
+        },
+        {
+          "type": "x5z4",
+          "typenum": "184908",
+          "typemoney": "20"
+        },
+        {
+          "type": "x5z3",
+          "typenum": "1412835",
+          "typemoney": "3"
+        },
+        {
+          "type": "x4z4",
+          "typenum": "2222",
+          "typemoney": "93"
+        },
+        {
+          "type": "x4z3",
+          "typenum": "39999",
+          "typemoney": "5"
+        },
+        {
+          "type": "x4z2",
+          "typenum": "217729",
+          "typemoney": "3"
+        },
+        {
+          "type": "x3z3",
+          "typenum": "34020",
+          "typemoney": "52"
+        },
+        {
+          "type": "x3z2",
+          "typenum": "358462",
+          "typemoney": "3"
+        },
+        {
+          "type": "x2z2",
+          "typenum": "317556",
+          "typemoney": "19"
+        },
+        {
+          "type": "x1z1",
+          "typenum": "68494",
+          "typemoney": "4.5"
+        }
+      ]
+    },
+    {
+      "name": "快乐8",
+      "code": "2026290",
+      "detailsLink": "/c/2026/10/31/671665.shtml",
+      "videoLink": "/c/2026/10/31/671664.shtml",
+      "date": "2026-10-31(六)",
+      "week": "六",
+      "red": "03,04,12,19,24,25,27,28,31,32,33,40,43,49,51,52,63,69,71,72",
+      "blue": "",
+      "blue2": "",
+      "sales": "107994586",
+      "poolmoney": "62888055.58",
+      "content": "广东1注。",
+      "addmoney": "",
+      "addmoney2": "",
+      "msg": "",
+      "z2add": "",
+      "m2add": "",
+      "fdjxp": "",
+      "gdjc": "212615132.18",
+      "gdjxp": "",
+      "kjhyjsx": "27,31,49,33,63,43,51,03,32,72,28,69,71,25,04,40,52,24,12,19",
+      "prizegrades": [
+        {
+          "type": "x10z10",
+          "typenum": "1",
+          "typemoney": "5000000"
+        },
+        {
+          "type": "x10z9",
+          "typenum": "103",
+          "typemoney": "8000"
+        },
+        {
+          "type": "x10z8",
+          "typenum": "1336",
+          "typemoney": "720"
+        },
+        {
+          "type": "x10z7",
+          "typenum": "14882",
+          "typemoney": "80"
+        },
+        {
+          "type": "x10z6",
+          "typenum": "102705",
+          "typemoney": "5"
+        },
+        {
+          "type": "x10z5",
+          "typenum": "433906",
+          "typemoney": "3"
+        },
+        {
+          "type": "x10z0",
+          "typenum": "300133",
+          "typemoney": "2"
+        },
+        {
+          "type": "x9z9",
+          "typenum": "12",
+          "typemoney": "250000"
+        },
+        {
+          "type": "x9z8",
+          "typenum": "210",
+          "typemoney": "2000"
+        },
+        {
+          "type": "x9z7",
+          "typenum": "3715",
+          "typemoney": "225"
+        },
+        {
+          "type": "x9z6",
+          "typenum": "33101",
+          "typemoney": "22"
+        },
+        {
+          "type": "x9z5",
+          "typenum": "171747",
+          "typemoney": "5"
+        },
+        {
+          "type": "x9z4",
+          "typenum": "555813",
+          "typemoney": "3"
+        },
+        {
+          "type": "x9z0",
+          "typenum": "231820",
+          "typemoney": "2"
+        },
+        {
+          "type": "x8z8",
+          "typenum": "111",
+          "typemoney": "50000"
+        },
+        {
+          "type": "x8z7",
+          "typenum": "972",
+          "typemoney": "800"
+        },
+        {
+          "type": "x8z6",
+          "typenum": "8480",
+          "typemoney": "80"
+        },
+        {
+          "type": "x8z5",
+          "typenum": "63207",
+          "typemoney": "10"
+        },
+        {
+          "type": "x8z4",
+          "typenum": "264802",
+          "typemoney": "3"
+        },
+        {
+          "type": "x8z0",
+          "typenum": "217031",
+          "typemoney": "2"
+        },
+        {
+          "type": "x7z7",
+          "typenum": "145",
+          "typemoney": "8500"
+        },
+        {
+          "type": "x7z6",
+          "typenum": "4319",
+          "typemoney": "300"
+        },
+        {
+          "type": "x7z5",
+          "typenum": "37355",
+          "typemoney": "30"
+        },
+        {
+          "type": "x7z4",
+          "typenum": "185705",
+          "typemoney": "4"
+        },
+        {
+          "type": "x7z0",
+          "typenum": "296157",
+          "typemoney": "2"
+        },
+        {
+          "type": "x6z6",
+          "typenum": "1035",
+          "typemoney": "2880"
+        },
+        {
+          "type": "x6z5",
+          "typenum": "24634",
+          "typemoney": "30"
+        },
+        {
+          "type": "x6z4",
+          "typenum": "226136",
+          "typemoney": "10"
+        },
+        {
+          "type": "x6z3",
+          "typenum": "976556",
+          "typemoney": "3"
+        },
+        {
+          "type": "x5z5",
+          "typenum": "17407",
+          "typemoney": "1000"
+        },
+        {
+          "type": "x5z4",
+          "typenum": "315270",
+          "typemoney": "20"
+        },
+        {
+          "type": "x5z3",
+          "typenum": "2004806",
+          "typemoney": "3"
+        },
+        {
+          "type": "x4z4",
+          "typenum": "4121",
+          "typemoney": "93"
+        },
+        {
+          "type": "x4z3",
+          "typenum": "58586",
+          "typemoney": "5"
+        },
+        {
+          "type": "x4z2",
+          "typenum": "262103",
+          "typemoney": "3"
+        },
+        {
+          "type": "x3z3",
+          "typenum": "50261",
+          "typemoney": "52"
+        },
+        {
+          "type": "x3z2",
+          "typenum": "507208",
+          "typemoney": "3"
+        },
+        {
+          "type": "x2z2",
+          "typenum": "511909",
+          "typemoney": "19"
+        },
+        {
+          "type": "x1z1",
+          "typenum": "76502",
+          "typemoney": "4.5"
+        }
+      ]
+    }
+  ]
+}

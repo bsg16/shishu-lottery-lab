@@ -105,6 +105,7 @@ function dltState() {
   };
 }
 export function exactCoverage(entry) {
+  if(entry?.game==='kl8')throw new Error('快乐8暂不支持整组覆盖计算');
   if(!validateEntry(entry))throw new Error('方案参数不完整或号码不合法');
   let winningOutcomes;
   if(entry.mode==='compound')winningOutcomes=compoundCount(entry);
@@ -138,6 +139,7 @@ function ssqTickets(count,random) {
   return tickets;
 }
 export function generateCoveragePlan(options,random=randomUnit,onProgress=()=>{}) {
+  if(options?.game==='kl8')throw new Error('快乐8请选择随机或历史参考选号');
   const baseline=generatePlan({...options,strategy:'random',spread:true},[],random);
   const baselineCoverage=exactCoverage(baseline);
   let tickets=baseline.tickets,method='fixed-size',winningOutcomes=baselineCoverage.winningOutcomes,candidateCount=0;

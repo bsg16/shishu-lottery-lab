@@ -1,4 +1,5 @@
 import { GAMES, prizeRank, canonicalIssue } from './domain.js';
+import { KL8_PRIZES, kl8Name, kl8RankName } from './kl8.js';
 
 const names = ['','一等奖','二等奖','三等奖','四等奖','五等奖','六等奖','七等奖','八等奖','九等奖'];
 const fixedPrizes = {
@@ -20,6 +21,14 @@ export function setupRules() {
   const issue = () => version() === 'historical' ? '26013' : '26014';
 
   function showMatch() {
+    if(game==='kl8') {
+      const pick=Number($('rules-kl8-pick').value),hits=Number($('rules-main').value),rank=prizeRank(game,hits,0,'2025350',pick),value=KL8_PRIZES[pick][hits];
+      $('rules-match-title').textContent=rank?kl8RankName(rank):'未中常规奖';
+      $('rules-match-result').classList.toggle('won',!!rank);
+      $('rules-match-detail').textContent=`${kl8Name(pick)}，命中 ${hits} 个。`+(rank?(value===null?'浮动奖金，以对应期开奖公告为准。':`常规单注奖金 ${money(value)}，限额赔付等调整以公告为准。`):'此命中情况没有常规奖。');
+      document.querySelectorAll('#rules-table-body tr').forEach(row=>{const matched=row.dataset.rank===rank;row.classList.toggle('matched',matched);row.querySelector('.rule-match-flag').hidden=!matched;});
+      return;
+    }
     const cfg=GAMES[game], main=Number($('rules-main').value), extra=Number($('rules-extra').value);
     const rank=prizeRank(game,main,extra,issue()), value=fixedPrizes[version()][rank];
     $('rules-match-title').textContent=rank ? names[rank] : '未中常规奖';
@@ -36,8 +45,31 @@ export function setupRules() {
     });
   }
 
-  function render(nextGame=game) {
+  function render(nextGame=game, selectedPick) {
     game=nextGame;
+    $('rules-kl8-wrap').hidden=game!=='kl8';
+    $('rules-extra').parentElement.hidden=game==='kl8';
+    if(game==='kl8') {
+      if(selectedPick)$('rules-kl8-pick').value=selectedPick;
+      const pick=Number($('rules-kl8-pick').value);
+      $('rules-period-wrap').hidden=true;$('rules-pool-note').hidden=true;
+      $('rules-caption').textContent=`快乐8 · ${kl8Name(pick)} · 第2025350期起`;
+      $('rules-legend').textContent=`每注从1–80选择${pick}个号码，与当期开出的20个号码比较；顺序不限。只计常规奖。`;
+      $('rules-main-label').textContent='命中个数';
+      const previous=Number($('rules-main').value);
+      $('rules-main').innerHTML=Array.from({length:pick+1},(_,i)=>`<option value="${i}">${i} 个</option>`).join('');
+      $('rules-main').value=Math.min(previous,pick);renderedGame=game;
+      $('rules-table-head').innerHTML='<tr><th scope="col">奖级</th><th scope="col">命中条件</th><th scope="col">常规单注奖金</th></tr>';
+      $('rules-table-body').innerHTML=Object.entries(KL8_PRIZES[pick]).sort(([a],[b])=>b-a).map(([hits,value])=>{
+        const rank=`x${pick}z${hits}`;
+        return `<tr data-rank="${rank}"><th scope="row">${kl8RankName(rank)}<span class="rule-match-flag" hidden>当前命中</span></th><td>${hits==='0'?'全部未命中':`命中 ${hits} 个`}</td><td>${value===null?`浮动奖金<small>最高${pick===9?'25':'500'}万元，以当期公告为准</small>`:money(value)}</td></tr>`;
+      }).join('');
+      $('rules-additional-title').textContent='全不中与复式怎么算';
+      $('rules-additional-note').textContent='选七至选十全部未命中时，每基本注返还2元。选一至选六全不中时不设奖；快乐8没有追加。倍数1–15倍，每组含倍投最多10000注。';
+      $('rules-example').textContent='例如选十的11号码复式包含11注，金额22元。若这11个号码中命中5个，则6注各中3元，合计18元；中得奖金也可能低于投入。';
+      $('rules-source').textContent='四川福彩 · 快乐8现行游戏规则 ↗';$('rules-source').href='https://www.scflcp.com.cn/yxgz/823144315.jhtml';
+      showMatch();return;
+    }
     const cfg=GAMES[game], current=version()==='current';
     $('rules-period-wrap').hidden=game!=='dlt';
     $('rules-caption').textContent=`${cfg.name} · ${game==='ssq'?'六个常规奖级':current?'七奖级 · 第26014期起':'历史九奖级 · 本站支持第21123–26013期'}`;
@@ -73,14 +105,15 @@ export function setupRules() {
     showMatch();
   }
   $('rules-period').addEventListener('change',()=>render());
+  $('rules-kl8-pick').addEventListener('change',()=>render());
   ['rules-main','rules-extra'].forEach(id=>$(id).addEventListener('change',showMatch));
   return {
     render,
-    selectIssue(nextGame,value) {
+    selectIssue(nextGame,value,pick) {
       let historical=false;
       if(nextGame==='dlt'&&value)try{historical=Number(canonicalIssue(nextGame,value))<26014;}catch{}
       $('rules-period').value=historical?'historical':'current';
-      render(nextGame);
+      render(nextGame,pick);
     }
   };
 }

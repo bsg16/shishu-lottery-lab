@@ -1,8 +1,11 @@
 import { canonicalIssue, validateDraw, mergeDraws } from '../public/domain.js';
+import { KL8_PRIZES, kl8RankName } from '../public/kl8.js';
 
 export const PROVIDERS = {
   ssq: 'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=100&issueStart=&issueEnd=&dayStart=&dayEnd=',
   sichuan: 'https://www.scflcp.com.cn/ssq',
+  kl8: 'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=kl8&issueCount=100&issueStart=&issueEnd=&dayStart=&dayEnd=',
+  sichuanKl8: 'https://www.scflcp.com.cn/kl8',
   dlt: 'https://www.gstc.org.cn/workapi/prize_history_list',
   jiangsu: 'https://api.js-lottery.com/wfzq/dlt/data'
 };
@@ -17,7 +20,10 @@ function validateRows(game, rows) {
 
 export function normalize(game, raw) {
   let rows;
-  if(game==='ssq') {
+  if(game==='kl8') {
+    if(raw.state!==0 || !Array.isArray(raw.result)) throw new Error('Invalid provider response');
+    rows=raw.result.map(r=>({issue:r.code,date:r.date.slice(0,10),main:r.red.split(',').map(Number),extra:[],prizes:kl8Prizes((r.prizegrades||[]).map(p=>[p.type,p.typemoney]))}));
+  } else if(game==='ssq') {
     if(raw.state!==0 || !Array.isArray(raw.result)) throw new Error('Invalid provider response');
     rows=raw.result.map(r=>({issue:r.code,date:r.date.slice(0,10),main:r.red.split(',').map(Number),extra:r.blue.split(',').map(Number),prizes:Object.fromEntries((r.prizegrades||[]).filter(p=>Number(p.type)<=6).map(p=>[String(p.type),Number(String(p.typemoney).replaceAll(',',''))||null]))}));
   } else {
@@ -25,6 +31,57 @@ export function normalize(game, raw) {
     rows=raw.data.prize_history_list.map(r=>({issue:r.issue_num,date:r.prize_time,main:r.prize_num.slice(0,5).map(Number),extra:r.prize_num.slice(5).map(Number)}));
   }
   return validateRows(game,rows);
+}
+
+const kl8PrizeKeys=Object.entries(KL8_PRIZES).flatMap(([pick,prizes])=>Object.keys(prizes).map(hits=>`x${pick}z${hits}`));
+function kl8Prizes(entries) {
+  const prizes={};
+  for(const [key,raw] of entries) {
+    if(!kl8PrizeKeys.includes(key))continue; // Ignore promotion-only categories.
+    const value=String(raw).trim().replaceAll(',','');
+    if(Object.hasOwn(prizes,key)||!/^\d+(?:\.\d+)?$/.test(value)||!Number.isFinite(Number(value)))throw new Error('Invalid KL8 prize');
+    prizes[key]=Number(value)||null;
+  }
+  if(Object.keys(prizes).length!==kl8PrizeKeys.length)throw new Error('Incomplete KL8 prizes');
+  return prizes;
+}
+
+export function normalizeSichuanKl8(html) {
+  const clean=html.replace(/<!--[\s\S]*?-->/g,''),plain=value=>value.replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').trim();
+  const select=clean.match(/<select\b[^>]*\bid=["']select_id["'][^>]*>([\s\S]*?)<\/select>/i)?.[1]||'';
+  const options=[...select.matchAll(/<option\b[^>]*\bvalue=["'](\d+)["'][^>]*>([\s\S]*?)<\/option>/gi)];
+  const blocks=[...clean.matchAll(/<div\b[^>]*\bclass=["'][^"']*\blottery-result-content-right\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)];
+  const tables=new Map();
+  for(const match of clean.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi)) {
+    const id=match[1].match(/\bid=["'](\d+x(?:10|[1-9]))["']/)?.[1];
+    if(!id)continue;
+    if(tables.has(id))throw new Error('Duplicate KL8 panel');
+    tables.set(id,match[2]);
+  }
+  if(!options.length||options.length!==blocks.length||tables.size!==options.length*10)throw new Error('Mismatched KL8 panels');
+  const labels=new Map(kl8PrizeKeys.map(key=>[kl8RankName(key),key]));
+  return validateRows('kl8',options.map((option,i)=>{
+    if(Number(option[1])!==i)throw new Error('Invalid KL8 index');
+    const block=blocks[i][1],date=block.match(/开奖时间[：:]\s*(\d{4}-\d{2}-\d{2})/)?.[1];
+    const group=block.match(/<div\b[^>]*\bclass=["'][^"']*\bcircle-group\b[^"']*["'][^>]*>([\s\S]*)/i)?.[1]||'';
+    const balls=[...group.matchAll(/<span\b[^>]*>([\s\S]*?)<\/span>/gi)].map(m=>plain(m[1]));
+    if(balls.length!==20||balls.some(n=>!/^\d{1,2}$/.test(n)))throw new Error('Invalid KL8 balls');
+    const entries=[];
+    for(let pick=1;pick<=10;pick++) {
+      const table=tables.get(`${i}x${pick}`);if(!table)throw new Error('Missing KL8 table');
+      for(const row of table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+        const cells=[...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(c=>plain(c[1]));
+        const key=labels.get(cells[0]);if(!key)continue;
+        if(cells.length!==3||!key.startsWith(`x${pick}z`))throw new Error('Invalid KL8 prize row');
+        entries.push([key,cells[2]]);
+      }
+    }
+    // A provincial table currently repeats “选七中七” for its middle tier.
+    // Keep independently validated draw numbers, but never guess a mislabeled prize.
+    let prizes;
+    try { prizes=kl8Prizes(entries); } catch { /* Leave amounts unconfirmed. */ }
+    return {issue:plain(option[2]),date,main:balls.map(Number),extra:[],...(prizes?{prizes}:{})};
+  }));
 }
 
 export function normalizeJiangsu(html) {
@@ -70,9 +127,13 @@ export function normalizeSichuan(html) {
 }
 
 export async function fetchDraws(game, fetcher=fetch) {
+  if(!['ssq','dlt','kl8'].includes(game))throw new Error('Unsupported game');
   const sources=game==='dlt' ? [
     {url:PROVIDERS.dlt,name:'甘肃体彩网',post:true,parse:r=>r.json().then(raw=>normalize(game,raw))},
     {url:PROVIDERS.jiangsu,name:'江苏体彩网',parse:r=>r.text().then(normalizeJiangsu)}
+  ] : game==='kl8' ? [
+    {url:PROVIDERS.sichuanKl8,name:'四川福彩官网',parse:r=>r.text().then(normalizeSichuanKl8)},
+    {url:PROVIDERS.kl8,name:'中国福彩网',parse:r=>r.json().then(raw=>normalize(game,raw))}
   ] : [
     {url:PROVIDERS.sichuan,name:'四川福彩官网',parse:r=>r.text().then(normalizeSichuan)},
     {url:PROVIDERS.ssq,name:'中国福彩网',parse:r=>r.json().then(raw=>normalize(game,raw))}
@@ -95,7 +156,7 @@ export async function fetchDraws(game, fetcher=fetch) {
 export async function drawsResponse(request, ctx, cache=caches.default, fetcher=fetch) {
   const url=new URL(request.url),game=url.searchParams.get('game');
   const json=(body,status)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-  if(!['ssq','dlt'].includes(game))return json({error:'彩种不支持'},400);
+  if(!['ssq','dlt','kl8'].includes(game))return json({error:'彩种不支持'},400);
   // Version the edge key to retire old cached responses, including incorrect dates.
   const key=new Request(`${url.origin}/api/draws?game=${game}&schema=3`);
   if(url.searchParams.get('refresh')!=='1') {
