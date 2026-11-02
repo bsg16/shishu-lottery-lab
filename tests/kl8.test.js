@@ -4,10 +4,11 @@ import {readFile} from 'node:fs/promises';
 import {generatePlan,validateEntry,validateDraw,planTotals,checkEntry,prizeRank,canonicalIssue,ticketKey,ticketText,choose} from '../public/domain.js';
 import {kl8Distribution,kl8RankName} from '../public/kl8.js';
 import {exactCoverage,generateCoveragePlan} from '../public/coverage.js';
-import {normalize,normalizeSichuanKl8,fetchDraws,drawsResponse,PROVIDERS} from '../server/draws.js';
+import {normalize,normalizeSichuanKl8,normalizeShanghaiKl8,fetchDraws,drawsResponse,PROVIDERS} from '../server/draws.js';
 import {emptyDocument,reconcileEntries,mergeDocuments,entriesFrom,newSyncCode,syncKeys,encryptDocument,decryptDocument} from '../public/sync-model.js';
 const cwl=JSON.parse(await readFile(new URL('fixtures/cwl-kl8.json',import.meta.url)));
 const html=await readFile(new URL('fixtures/sichuan-kl8.html',import.meta.url),'utf8');
+const shanghai=await readFile(new URL('fixtures/shanghai-kl8.html',import.meta.url),'utf8');
 const range=(n,start=1)=>Array.from({length:n},(_,i)=>start+i);
 const entry=(pick,main=range(pick),mode='single',multiplier=1)=>({game:'kl8',pick,mode,multiplier,additional:false,tickets:[{main,extra:[]}]});
 const draw=(main=range(20))=>({issue:'2026291',main,extra:[]});
@@ -102,6 +103,17 @@ test('KL8 fallback remains usable and force refresh bypasses stale edge cache',a
   const response=await drawsResponse(new Request('https://example.test/api/draws?game=kl8&refresh=1'),{waitUntil:p=>promises.push(p)},{match:()=>{throw new Error('Must bypass cache');},put:async()=>{cacheWrites++;}},async url=>url===PROVIDERS.kl8?Response.json(cwl):new Response(html));
   assert.equal(response.status,200);assert.equal((await response.json()).draws[0].main.length,20);await Promise.all(promises);assert.equal(cacheWrites,1);
   await assert.rejects(fetchDraws('kl8',async()=>new Response('',{status:503})));
+});
+
+test('Shanghai KL8 keeps official updates available when both original sources fail',async()=>{
+  const rows=normalizeShanghaiKl8(shanghai);assert.equal(rows.length,2);
+  assert.deepEqual(rows[0].main,normalize('kl8',cwl)[0].main);
+  assert.equal(rows[0].prizes,undefined);
+  assert.throws(()=>normalizeShanghaiKl8(shanghai.replace('<i>03</i>','<i>81</i>')));
+  assert.throws(()=>normalizeShanghaiKl8(shanghai.replace('2026-11-01','2026-11-31')));
+  assert.throws(()=>normalizeShanghaiKl8('<table></table>'));
+  const result=await fetchDraws('kl8',async url=>url===PROVIDERS.shanghaiKl8?new Response(shanghai):new Response('',{status:503}));
+  assert.equal(result.sourceName,'上海福彩官网');assert.equal(result.draws[0].issue,'2026291');
 });
 
 test('encrypted sync preserves KL8 play types alongside existing SSQ records',async()=>{

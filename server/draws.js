@@ -6,6 +6,7 @@ export const PROVIDERS = {
   sichuan: 'https://www.scflcp.com.cn/ssq',
   kl8: 'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=kl8&issueCount=100&issueStart=&issueEnd=&dayStart=&dayEnd=',
   sichuanKl8: 'https://www.scflcp.com.cn/kl8',
+  shanghaiKl8: 'https://www.swlc.net.cn/lottery/kl8.html?limit=100&view=previous',
   dlt: 'https://www.gstc.org.cn/workapi/prize_history_list',
   jiangsu: 'https://api.js-lottery.com/wfzq/dlt/data'
 };
@@ -84,6 +85,18 @@ export function normalizeSichuanKl8(html) {
   }));
 }
 
+export function normalizeShanghaiKl8(html) {
+  const rows=[],plain=value=>value.replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;/gi,' ').trim();
+  for(const row of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells=[...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(c=>c[1]);
+    if(!/^20\d{5}$/.test(plain(cells[0]||'')))continue;
+    if(cells.length!==5||!/\blottery-history-balls--red\b/.test(cells[2]))throw new Error('Invalid Shanghai KL8 row');
+    const main=[...cells[2].matchAll(/<i\b[^>]*>(\d{1,2})<\/i>/gi)].map(m=>Number(m[1]));
+    rows.push({issue:plain(cells[0]),date:plain(cells[1]).slice(0,10),main,extra:[]});
+  }
+  return validateRows('kl8',rows);
+}
+
 export function normalizeJiangsu(html) {
   const rows=[];
   for(const match of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
@@ -133,6 +146,7 @@ export async function fetchDraws(game, fetcher=fetch) {
     {url:PROVIDERS.jiangsu,name:'江苏体彩网',parse:r=>r.text().then(normalizeJiangsu)}
   ] : game==='kl8' ? [
     {url:PROVIDERS.sichuanKl8,name:'四川福彩官网',parse:r=>r.text().then(normalizeSichuanKl8)},
+    {url:PROVIDERS.shanghaiKl8,name:'上海福彩官网',parse:r=>r.text().then(normalizeShanghaiKl8)},
     {url:PROVIDERS.kl8,name:'中国福彩网',parse:r=>r.json().then(raw=>normalize(game,raw))}
   ] : [
     {url:PROVIDERS.sichuan,name:'四川福彩官网',parse:r=>r.text().then(normalizeSichuan)},
