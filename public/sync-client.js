@@ -1,6 +1,7 @@
 import { emptyDocument, entriesFrom, reconcileEntries, mergeDocuments, validateDocument, newSyncCode, normalizeCode, syncKeys, encryptDocument, decryptDocument, documentSignature } from './sync-model.js';
 import { newShortCode, formatShortCode, shortCodeKeys, wrapSyncCode, unwrapSyncCode } from './short-code.js';
 import { normalizeSyncName, syncNameKeys } from './sync-name.js';
+import { fetchJSON } from './network.js';
 
 export const SYNC_STORE = 'shishu.sync.v1';
 export class SyncClient {
@@ -34,11 +35,7 @@ export class SyncClient {
     return this.authorizedRequest('/api/vault',token,method,body);
   }
   async authorizedRequest(path,token,method='GET',body) {
-    let response;
-    try {
-      response = await this.fetcher(path,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store',signal:AbortSignal.timeout(15000)});
-    } catch { throw new Error('暂时无法连接云端，号码已保存在本机，联网后可重试'); }
-    let result; try { result=await response.json(); } catch { throw new Error('云端暂不可用，请稍后重试'); }
+    const {response,result}=await fetchJSON(path,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),cache:'no-store'}, {fetcher:this.fetcher,retries:1});
     if (!response.ok) { const error=new Error(result.error||'同步失败，请稍后重试'); error.status=response.status; throw error; }
     return result;
   }

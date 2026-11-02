@@ -70,6 +70,16 @@ test('unknown sync code never creates a vault or changes local numbers',async()=
   const remote=server(),a=device(remote,[entry('local')]);
   await assert.rejects(a.client.connect(newSyncCode()));assert.equal(remote.vaults.size,0);assert.equal(a.entries[0].id,'local');assert.equal(a.client.read(),null);
 });
+test('connecting by nickname works when the browser lacks AbortSignal.timeout',async t=>{
+  const remote=server(),a=device(remote,[entry('existing')]),b=device(remote,[entry('local')]);
+  await a.client.create('浏览器兼容检查');
+  const timeout=Object.getOwnPropertyDescriptor(AbortSignal,'timeout');
+  Object.defineProperty(AbortSignal,'timeout',{configurable:true,value:undefined});
+  t.after(()=>{Object.defineProperty(AbortSignal,'timeout',timeout);a.client.disconnect();b.client.disconnect();});
+  await b.client.connect('浏览器兼容检查');
+  assert.deepEqual(b.entries.map(e=>e.id),['existing','local']);
+  assert.equal(b.status.kind,'synced');
+});
 test('saving during an in-flight synchronization is not lost',async()=>{
   const remote=server(),a=device(remote);const code=await a.client.create();
   const original=a.client.request.bind(a.client);let inserted=false;

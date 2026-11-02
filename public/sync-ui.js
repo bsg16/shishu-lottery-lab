@@ -1,4 +1,5 @@
 import { SyncClient, SYNC_STORE } from './sync-client.js';
+import { fetchJSON } from './network.js';
 export function setupCloudSync({getEntries,onEntries,notify}) {
   const $=id=>document.getElementById(id);
   const client=new SyncClient({storage:localStorage,getEntries,onEntries,onStatus:({kind,message})=>{
@@ -14,18 +15,30 @@ export function setupCloudSync({getEntries,onEntries,notify}) {
     $('sync-code-label').textContent=state?.syncName?'你的自定义同步名':'你的私人同步码';
     $('sync-code-hint').textContent=state?.syncName?'其他设备输入这个名字即可连接同一号码库；英文不区分大小写。':state?.shortCode?'原8位短码仍可使用，也可以在下面给号码库起个名字。':'原长码仍可使用，也可以在下面给号码库起个名字。';
   };
-  const act=async action=>{
+  const act=async (action,buttonId,progress)=>{
+    const button=buttonId?$(buttonId):null,label=button?.textContent;
     $('cloud-error').hidden=true;
+    if(button)button.textContent=progress;
     for(const id of ['cloud-create','cloud-connect','cloud-set-name','cloud-disconnect'])$(id).disabled=true;
     try{await action();}
     catch(error){$('cloud-error').textContent=error.message;$('cloud-error').hidden=false;}
-    finally{render();for(const id of ['cloud-create','cloud-connect','cloud-set-name','cloud-disconnect'])$(id).disabled=false;}
+    finally{render();if(button)button.textContent=label;for(const id of ['cloud-create','cloud-connect','cloud-set-name','cloud-disconnect'])$(id).disabled=false;}
   };
   $('cloud-manage').addEventListener('click',()=>{$('cloud-error').hidden=true;render();$('cloud-dialog').showModal();});
   $('cloud-now').addEventListener('click',()=>void client.sync());
   $('cloud-create-form').addEventListener('submit',event=>{event.preventDefault();void act(async()=>{if(await client.create($('cloud-name').value)){$('cloud-name').value='';notify('同步名已创建，其他设备输入同名即可恢复');}});});
   $('cloud-name-form').addEventListener('submit',event=>{event.preventDefault();void act(async()=>{if(await client.setSyncName($('cloud-new-name').value)){$('cloud-new-name').value='';notify('同步名已保存，原号码库和连接方式均保留');}});});
-  $('cloud-connect-form').addEventListener('submit',event=>{event.preventDefault();void act(async()=>{await client.connect($('cloud-input').value);$('cloud-input').value='';notify('已连接，当前设备与云端号码已合并');});});
+  $('cloud-connect-form').addEventListener('submit',event=>{event.preventDefault();void act(async()=>{await client.connect($('cloud-input').value);$('cloud-input').value='';notify('已连接，当前设备与云端号码已合并');},'cloud-connect','正在连接并恢复号码…');});
+  $('cloud-diagnose').addEventListener('click',async()=>{
+    const button=$('cloud-diagnose'),result=$('cloud-network-result'),start=Date.now();
+    button.disabled=true;result.textContent='正在检查此设备到云端的连接…';
+    try {
+      const {response,result:health}=await fetchJSON('/api/health',{cache:'no-store'});
+      if(!response.ok||health?.ok!==true)throw new Error('服务器暂不可用，请稍后重试；本机号码已保留');
+      result.textContent=`服务器连接正常（${((Date.now()-start)/1000).toFixed(1)}秒）· 版本 ${health.version}。可以重新尝试连接同步名。此检查不读取或修改号码。`;
+    } catch(error){result.textContent=error.message;}
+    finally{button.disabled=false;}
+  });
   $('cloud-reveal').addEventListener('click',()=>{$('sync-code').type=$('sync-code').type==='password'?'text':'password';$('cloud-reveal').textContent=$('sync-code').type==='password'?'显示':'隐藏';});
   $('cloud-copy').addEventListener('click',async()=>{
     try{await navigator.clipboard.writeText(client.displayCode());notify('已复制，请仅保存在你信任的地方');}

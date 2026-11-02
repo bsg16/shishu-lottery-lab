@@ -2,6 +2,7 @@ import { GAMES, pad, choose, generatePlan, planTotals, ticketText, ticketKey, st
 import { kl8Name, kl8RankName, kl8Distribution } from './kl8.js';
 import { setupCloudSync } from './sync-ui.js';
 import { setupRules } from './rules.js';
+import { fetchJSON } from './network.js';
 const $ = id => document.getElementById(id);
 const all = selector => [...document.querySelectorAll(selector)];
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -139,7 +140,7 @@ function renderLatest() {
 async function refreshData(which=game,force=false) {
   if(loading.has(which))return;loading.add(which);lastAttempt[which]=Date.now();renderLatest();if(activeEntry?.game===which)renderCheckData();
   try {
-    const response=await fetch(`/api/draws?game=${which}${force?'&refresh=1':''}`,{cache:'no-store',signal:AbortSignal.timeout(13000)}),result=await response.json();
+    const {response,result}=await fetchJSON(`/api/draws?game=${which}${force?'&refresh=1':''}`,{cache:'no-store'},{timeoutMs:13000});
     if(!response.ok||result.fallback)throw new Error();
     data.games[which].draws=mergeDraws(which,data.games[which].draws,result.draws);
     if(result.sourceName)data.games[which].sourceName=result.sourceName;
