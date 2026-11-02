@@ -100,16 +100,18 @@
         <section class="panel rules-table-panel" aria-labelledby="rules-caption">
           <div class="rules-table-heading"><h3 id="rules-caption"></h3><label id="rules-kl8-wrap" hidden><span class="visually-hidden">快乐8规则玩法</span><select id="rules-kl8-pick"><option value="1">选一</option><option value="2">选二</option><option value="3">选三</option><option value="4">选四</option><option value="5">选五</option><option value="6">选六</option><option value="7">选七</option><option value="8">选八</option><option value="9">选九</option><option value="10" selected>选十</option></select></label><label id="rules-period-wrap" hidden><span class="visually-hidden">大乐透规则版本</span><select id="rules-period"><option value="current">现行规则 · 第26014期起</option><option value="historical">历史规则 · 第21123–26013期</option></select></label></div>
           <p id="rules-legend" class="rules-description"></p>
-          <div class="table-wrap"><table class="rules-table"><caption class="visually-hidden">每注基本投注的命中条件与税前奖金</caption><thead id="rules-table-head"></thead><tbody id="rules-table-body"></tbody></table></div>
+          <div class="rules-odds-summary"><div><span>单注中任意常规奖</span><strong id="rules-any-probability"></strong></div><div><span>单注未中常规奖</span><strong id="rules-no-probability"></strong></div><p id="rules-return-note"></p></div>
+          <div class="table-wrap"><table class="rules-table"><caption class="visually-hidden">每注基本投注的命中条件、税前奖金与中奖概率</caption><thead id="rules-table-head"></thead><tbody id="rules-table-body"></tbody></table></div>
+          <p id="rules-probability-note" class="rules-description field-space"></p>
           <p id="rules-pool-note" class="rules-description field-space" hidden>三至七等奖按当期适用的奖池档位计奖，8亿元整属于高档。这里同时列出两档，不用页面上开奖后的奖池余额推算当期奖金。</p>
-          <p class="fine-print">金额为每注基本投注的税前规则金额；浮动奖金及限额赔付等调整，以对应期开奖公告为准。每注只计最高常规奖级。</p>
+          <p class="fine-print">金额为每注基本投注的税前规则金额；“最高”仅为浮动奖金上限，不是固定奖金。实际浮动奖金及总额封顶、限额赔付等调整，以对应期开奖公告为准。</p>
           <div class="rules-source"><span>规则核对：2026-11-02</span><a id="rules-source" target="_blank" rel="noopener"></a></div>
         </section>
         <aside class="rules-side">
           <section class="panel rules-lookup" aria-labelledby="rules-lookup-title">
             <div class="eyebrow subtle">TRY A COMBINATION</div><h3 id="rules-lookup-title">试一试命中情况</h3><p class="rules-description">选择一注基本组合实际命中的个数。</p>
             <div class="two-fields field-space"><div><label id="rules-main-label" class="field-label" for="rules-main">红球命中个数</label><select id="rules-main"></select></div><div><label id="rules-extra-label" class="field-label" for="rules-extra">蓝球命中个数</label><select id="rules-extra"></select></div></div>
-            <div id="rules-match-result" class="rule-match-result" role="status"><strong id="rules-match-title"></strong><p id="rules-match-detail"></p></div>
+            <div id="rules-match-result" class="rule-match-result" role="status"><strong id="rules-match-title"></strong><p id="rules-match-detail"></p><p id="rules-match-probability"></p></div>
             <p class="fine-print">复式方案请到“我的号码”逐注核对，不能用整组选中号码的总命中数直接套表。</p><button data-view="saved" class="text-button field-space">去核对已保存的号码 →</button>
           </section>
           <section class="panel rules-explainer"><h3 id="rules-additional-title"></h3><p id="rules-additional-note"></p><h3>复式与倍投</h3><p id="rules-example"></p><p>倍投是重复购买相同组合，成本与对应中奖注数按倍数计算；不会增加这组号码被开出的概率。</p></section>

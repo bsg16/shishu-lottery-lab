@@ -47,8 +47,36 @@
 .rules-explainer h3:not(:first-child){margin-top:23px}
 .rules-source{display:flex;flex-wrap:wrap;gap:8px 15px;margin-top:20px;padding-top:15px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}
 .rules-source a{color:var(--coral);text-decoration:underline;text-underline-offset:3px}
+.rules-odds-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin:18px 0 8px;padding:16px;background:var(--soft);border-radius:10px}
+.rules-odds-summary span{display:block;font-size:11px;color:var(--muted)}
+.rules-odds-summary strong{display:block;font-size:24px;font-weight:550;margin-top:5px;font-variant-numeric:tabular-nums}
+.rules-odds-summary>div:first-child strong{color:var(--coral)}
+.rules-odds-summary p{grid-column:1/-1;font-size:10px;color:var(--muted);line-height:1.7}
+.rules-table .rule-prize{white-space:normal;min-width:116px}
+.rules-table .rule-prize small{line-height:1.7}
+.rule-prize-tier{display:block;white-space:nowrap}
+.rule-prize-tier+.rule-prize-tier{margin-top:8px}
+.rule-prize-tier small{margin-top:0}
+.rule-probability strong{font-size:12px;font-weight:550;font-variant-numeric:tabular-nums}
+.rule-probability small{font-variant-numeric:tabular-nums;white-space:nowrap}
+#rules-match-probability{padding-top:10px;margin-top:10px;border-top:1px solid var(--line)}
 @media(max-width:900px){.rules-layout{grid-template-columns:1fr}.rules-side{grid-template-columns:1fr 1fr}}
 @media(max-width:680px){.site-header nav{gap:10px}.nav-button{white-space:nowrap;font-size:12px}.rules-shortcut{flex-direction:column;align-items:flex-end;gap:3px}.rules-shortcut .toolbar-note{max-width:125px}.rules-layout{gap:17px}.rules-table-panel,.rules-lookup,.rules-explainer{padding:18px}.rules-side{grid-template-columns:1fr}.rules-table th,.rules-table td{padding:13px 5px;font-size:11px}.rules-table thead th{font-size:9px}.rules-table td small{font-size:9px}.rule-conditions{gap:4px}.rule-pair{gap:2px}.rule-pair b{width:21px;height:24px;font-size:11px}.rule-or{font-size:9px}.rules-description{font-size:11px}.rules-table-heading select{font-size:13px}.rules-table tbody th{white-space:normal;min-width:43px}.rules-table-panel .table-wrap{overflow:visible}}
+@media(max-width:680px){
+  .rules-table,.rules-table tbody{display:block;width:100%}
+  .rules-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .rules-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 14px;padding:17px 0;border-bottom:1px solid var(--line)}
+  .rules-table tbody tr:last-child{border-bottom:0}
+  .rules-table tbody th,.rules-table tbody td{padding:0;border:0;min-width:0;white-space:normal}
+  .rules-table tbody th{grid-column:1/-1;font-size:14px}
+  .rules-table .rule-condition{grid-column:1/-1}
+  .rules-table td:before{content:attr(data-label);display:block;font-size:10px;color:var(--muted);margin-bottom:6px}
+  .rule-match-flag{display:inline;margin-left:8px}
+  .rules-table .rule-prize{min-width:0}
+  .rules-table .rule-probability{white-space:nowrap}
+  .rules-odds-summary{padding:12px;gap:10px}
+  .rules-odds-summary strong{font-size:22px}
+}
 
 /* Twenty drawn balls and the third game fit narrow screens without overflow. */
 .game-switch{flex-wrap:wrap}.game-switch button{white-space:nowrap}.latest-card{min-width:0}.kl8-plan-summary{font-size:12px;line-height:1.8;padding:14px 16px;margin:0 0 16px;border:1px solid var(--line);border-radius:12px;color:var(--muted);background:var(--soft)}#kl8-pick-wrap{margin-bottom:20px}#kl8-plan-summary[hidden]{display:none}.ticket-row .ball-row{min-width:0;flex-wrap:wrap}.ticket-row{align-items:center}#rules-kl8-wrap{max-width:130px}.history-bottom-grid:has(#study-card[hidden]){grid-template-columns:1fr}
