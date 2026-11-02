@@ -6,10 +6,10 @@ const all = selector => [...document.querySelectorAll(selector)];
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE = 'shishu.plans.v1', CACHE = 'shishu.draws.v1';
 let game = 'ssq', mode = 'single', view = 'generate', data, currentPlan, saved = [], historyLimit = 20;
-let activeEntry, manualCheck = false, toastTimer, cloud, rules, displayedCheckDraw;
+let activeEntry, manualCheck = false, toastTimer, cloud, rules, displayedCheckDraw, generationWorker;
 const fetchedState = {}, lastAttempt = {}, loading = new Set();
 const REFRESH_INTERVAL = 5 * 60 * 1000;
-const strategyNames = {random:'随机选号',hot:'热号参考',cold:'冷号参考',overdue:'遗漏参考'};
+const strategyNames = {coverage:'常规奖覆盖',random:'随机选号',hot:'热号参考',cold:'冷号参考',overdue:'遗漏参考'};
 const rankNames = ['','一等奖','二等奖','三等奖','四等奖','五等奖','六等奖','七等奖','八等奖','九等奖'];
 const amount = v => Number(v).toLocaleString('zh-CN',{maximumFractionDigits:2});
 const odds = p => p >= 1 ? '100%' : `约 ${amount(Math.round(1 / p))} 分之一`;
@@ -48,14 +48,16 @@ function previewTotals() {
   return totals;
 }
 function renderConfig() {
+  if(generationWorker){generationWorker.terminate();generationWorker=undefined;$('generate-button').disabled=false;$('generation-progress').textContent='参数已更改，请重新生成。';}
   const g=GAMES[game];
   $('single-inputs').hidden=mode!=='single';$('compound-inputs').hidden=mode!=='compound';
   $('ticket-count').disabled=mode!=='single';$('main-size').disabled=mode!=='compound';$('extra-size').disabled=mode!=='compound';
-  $('additional-wrap').hidden=game!=='dlt';$('spread-wrap').hidden=mode!=='single';
+  $('additional-wrap').hidden=game!=='dlt';$('spread-wrap').hidden=mode!=='single'||$('strategy').value==='coverage';
   $('main-size-label').textContent=`${g.mainLabel}数量`;$('extra-size-label').textContent=`${g.extraLabel}数量`;
   $('main-size').min=g.mainK;$('main-size').max=g.mainN;$('extra-size').min=g.extraK;$('extra-size').max=g.extraN;
   $('spread-label').innerHTML=game==='ssq'?'尽量分散蓝球 <small>优先覆盖不同蓝球号码</small>':'分散后区组合 <small>优先选择不同的后区两数组合</small>';
-  const descriptions={random:'每个号码均匀抽取，整组号码自动去重。',hot:'近50期出现越多，抽样权重越高；不代表下期更易开出。',cold:'近50期出现越少，抽样权重越高；不代表“该出了”。',overdue:'近50期遗漏越长，抽样权重越高；不代表即将补出。'};
+  const coverageDescription=mode==='compound'?'同一复式规模的号码具有相同中奖概率，生成后精确计算常规奖覆盖。':game==='ssq'?'以至少中一次常规奖为目标，构造达到该注数概率上限的组合。含小奖，不保证回本。':'固定注数比较候选方案，增加常规奖覆盖。精确计算概率，尚未证明全局最优。';
+  const descriptions={coverage:coverageDescription,random:'每个号码均匀抽取，整组号码自动去重。',hot:'近50期出现越多，抽样权重越高；不代表下期更易开出。',cold:'近50期出现越少，抽样权重越高；不代表“该出了”。',overdue:'近50期遗漏越长，抽样权重越高；不代表即将补出。'};
   $('strategy-description').textContent=descriptions[$('strategy').value];
   all('[data-mode]').forEach(b=>{b.classList.toggle('active',b.dataset.mode===mode);b.setAttribute('aria-pressed',b.dataset.mode===mode);});
   try {
@@ -70,13 +72,34 @@ function renderPlan() {
   $('result-tag').textContent=p.mode==='compound'?`${p.tickets[0].main.length} + ${p.tickets[0].extra.length} 复式`:`${p.tickets.length} 注单式`;
   $('generation-meta').textContent=`${strategyNames[p.strategy]||'参考选号'} · ${g.name} · ${p.multiplier} 倍${p.game==='dlt'?p.additional?' · 已追加':' · 不追加':''} · 共 ${amount(t.cost)} 元`;
   $('results').innerHTML=ticketRows(p.tickets,true);$('save-plan').disabled=false;$('save-plan').innerHTML='保存本组号码 <span aria-hidden="true">＋</span>';
+  const coverage=p.coverage;$('coverage-summary').hidden=!coverage;
+  if(coverage){
+    const percent=n=>(n*100).toFixed(2)+'%';
+    $('coverage-probability').textContent=percent(coverage.probability);
+    $('coverage-miss').textContent=`未中任何常规奖：${percent(1-coverage.probability)}`;
+    $('coverage-method').textContent=coverage.method==='fixed-size'?'同一复式规模下，各组号码的此项概率相同。':coverage.method==='proven-optimal'?'已达到该注数下「至少中一次常规奖」的概率上限。':'候选方案择优；此方案概率已精确计算，尚未证明全局最优。';
+    $('coverage-comparison').textContent=coverage.method==='fixed-size'?'':`本次同注数随机对照（已分散${p.game==='ssq'?'蓝球':'后区组合'}）：${percent(coverage.baselineProbability)}；提高 ${Math.max(0,(coverage.probability-coverage.baselineProbability)*100).toFixed(2)} 个百分点。对照仅为本次一组，不是随机策略平均值。`;
+    $('coverage-limit').textContent=`以均匀、独立开奖为前提，仅计常规奖。包含最低档小奖，中奖不等于回本。本方案金额 ${amount(t.cost)} 元；此目标不优化大奖奖金。`;
+  }
 }
 function generate() {
   try {
-    errorAt('form-error','');
-    currentPlan={...generatePlan(options(),data.games[game].draws),id:crypto.randomUUID(),createdAt:new Date().toISOString()};
-    renderPlan();
-  } catch(e) {errorAt('form-error',e.message);}
+    errorAt('form-error','');generationWorker?.terminate();generationWorker=undefined;
+    const settings=options();previewTotals();
+    const finish=plan=>{currentPlan={...plan,id:crypto.randomUUID(),createdAt:new Date().toISOString()};$('generate-button').disabled=false;$('generation-progress').textContent='';renderPlan();};
+    if(settings.strategy!=='coverage'){finish(generatePlan(settings,data.games[game].draws));return;}
+    $('generate-button').disabled=true;$('generation-progress').textContent='正在计算常规奖覆盖…';
+    const worker=new Worker(new URL('./coverage-worker.js',import.meta.url),{type:'module'});generationWorker=worker;
+    const fail=message=>{if(generationWorker!==worker)return;worker.terminate();generationWorker=undefined;$('generate-button').disabled=false;$('generation-progress').textContent='';errorAt('form-error',message);};
+    worker.onerror=()=>fail('覆盖计算未能完成，请刷新后重试或选择随机选号。');
+    worker.onmessage=event=>{
+      if(generationWorker!==worker)return;
+      if(event.data.type==='progress'){$('generation-progress').textContent=`正在比较组合：${event.data.completed} / ${event.data.total} 注`;return;}
+      if(event.data.type==='error'){fail(event.data.message);return;}
+      if(event.data.type==='result'){worker.terminate();generationWorker=undefined;finish(event.data.plan);}
+    };
+    worker.postMessage(settings);
+  } catch(e) {$('generate-button').disabled=false;$('generation-progress').textContent='';errorAt('form-error',e.message);}
 }
 function setGame(next) {
   if(!GAMES[next])return;

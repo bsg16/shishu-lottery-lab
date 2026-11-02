@@ -1,6 +1,6 @@
 {
   "name": "shishu-lottery-lab",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "build:pages": "npm run build && node scripts/build-pages.mjs",
     "dev": "wrangler dev --port 8787",
     "test": "node --test tests/*.test.js",
+    "benchmark:coverage": "node scripts/benchmark-coverage.mjs",
     "test:integration": "node --test tests/sync.integration.js",
     "deploy": "npm run build && wrangler deploy",
     "deploy:pages": "npm run build:pages && wrangler pages deploy --cwd pages"
