@@ -3,6 +3,7 @@ import { kl8Name, kl8RankName, kl8Distribution } from './kl8.js';
 import { setupCloudSync } from './sync-ui.js';
 import { setupRules } from './rules.js';
 import { fetchJSON } from './network.js';
+import { renderCheckDetails } from './check-details.js';
 const $ = id => document.getElementById(id);
 const all = selector => [...document.querySelectorAll(selector)];
 const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -191,14 +192,14 @@ function openCheck(id) {
   const g=GAMES[activeEntry.game];manualCheck=false;
   $('check-plan-label').textContent=`${g.name}${activeEntry.game==='kl8'?' · '+kl8Name(activeEntry.pick):''} · ${planTotals(activeEntry).combinations} 注基本组合 · ${activeEntry.multiplier} 倍${activeEntry.additional?' · 已追加':''}`;
   $('check-issue').value='';
-  $('manual-issue').value=activeEntry.targetIssue||'';$('manual-main').value='';$('manual-extra').value='';
+  $('manual-issue').value=activeEntry.targetIssue||activeEntry.lastCheck?.issue||'';$('manual-main').value='';$('manual-extra').value='';
   $('manual-main-label').textContent=`${g.mainLabel}（${g.drawK||g.mainK}个）`;$('manual-extra-label').textContent=`${g.extraLabel}号码（${g.extraK}个）`;
   $('manual-extra-label').hidden=activeEntry.game==='kl8';$('manual-extra').hidden=activeEntry.game==='kl8';
   $('check-result').innerHTML='';errorAt('check-error','');renderCheckMode();$('check-dialog').showModal();renderCheckData();refreshData(activeEntry.game,true);
 }
 function renderCheckData() {
   if(!activeEntry||!$('check-dialog').open)return;
-  const which=activeEntry.game,draws=data.games[which].draws,selected=$('check-issue').value||activeEntry.targetIssue||'';
+  const which=activeEntry.game,draws=data.games[which].draws,selected=$('check-issue').value||activeEntry.targetIssue||activeEntry.lastCheck?.issue||'';
   $('check-issue').innerHTML='<option value="">开奖后，选择对应期号</option>'+draws.map(r=>`<option value="${escape(r.issue)}">${escape(r.issue)} 期 · ${escape(r.date)}</option>`).join('');
   if(draws.some(r=>r.issue===selected))$('check-issue').value=selected;
   const state=loading.has(which)?'正在查询最新开奖…':fetchedState[which]||'显示已收录数据';
@@ -227,6 +228,7 @@ function performCheck() {
     const ranks=Object.entries(result.ranks).map(([rank,count])=>`<div><span>${activeEntry.game==='kl8'?kl8RankName(rank):rankNames[rank]}</span><strong>${amount(count)} 注</strong></div>`).join('');
     const money=result.allAmountsKnown?`按该期公告奖金合计 ¥${amount(result.knownAmount)}（税前）`:result.winningBets?'已确认奖级与注数，奖金请查对应期开奖公告。':'';
     $('check-result').innerHTML=`<div class="check-summary ${result.winningBets?'won':''}"><h3>${result.winningBets?'中得 '+amount(result.winningBets)+' 注常规奖':'未中常规奖'}</h3><p>第 ${escape(draw.issue)} 期 · ${manualCheck?'手动输入奖号':'已收录官方开奖'}</p><div class="check-ranks">${ranks}</div>${result.additionalWinningBets?`<p>其中 ${result.additionalWinningBets} 注享有追加奖金权益。</p>`:''}<p>${money}</p><small>方案金额 ¥${amount(result.total.cost)} · 倍投已计入中奖注数${activeEntry.game==='dlt'?' · '+(Number(draw.issue)>=26014?'七奖级规则':'历史九奖级规则'):''}</small></div>`;
+    renderCheckDetails($('check-result'),activeEntry,draw,result);
     const lastCheck={issue:draw.issue,manual:manualCheck,winningBets:result.winningBets,ranks:result.ranks,checkedAt:new Date().toISOString()};
     try{writeSaved(saved.map(r=>r.id===activeEntry.id?{...r,lastCheck}:r));}catch{toast('核对完成，浏览器空间不足，核对记录未保存');}
   }catch(e){errorAt('check-error',e.message);$('check-result').innerHTML='';}

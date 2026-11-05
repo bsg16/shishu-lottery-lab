@@ -72,14 +72,19 @@ export function checkEntry(entry, draw) {
   canonicalIssue(entry.game,draw.issue);
   const g = gameConfig(entry), ranks = {}, matches = [];
   for (const ticket of entry.tickets) {
-    const hitMain = ticket.main.filter(n => draw.main.includes(n)).length;
-    const hitExtra = ticket.extra.filter(n => draw.extra.includes(n)).length;
-    matches.push({ main: hitMain, extra: hitExtra });
+    const mainNumbers = ticket.main.filter(n => draw.main.includes(n));
+    const extraNumbers = ticket.extra.filter(n => draw.extra.includes(n));
+    const hitMain = mainNumbers.length, hitExtra = extraNumbers.length, ticketRanks = {};
     for (let a = 0; a <= g.mainK; a++) for (let b = 0; b <= g.extraK; b++) {
       const ways = choose(hitMain,a) * choose(ticket.main.length-hitMain,g.mainK-a) * choose(hitExtra,b) * choose(ticket.extra.length-hitExtra,g.extraK-b);
       const rank = prizeRank(entry.game,a,b,draw.issue,entry.pick);
-      if (ways && rank) ranks[rank] = (ranks[rank] || 0) + ways * entry.multiplier;
+      if (ways && rank) {
+        ticketRanks[rank] = (ticketRanks[rank] || 0) + ways * entry.multiplier;
+        ranks[rank] = (ranks[rank] || 0) + ways * entry.multiplier;
+      }
     }
+    matches.push({ main: hitMain, extra: hitExtra, mainNumbers, extraNumbers, ranks: ticketRanks,
+      winningBets: Object.values(ticketRanks).reduce((sum,count)=>sum+count,0) });
   }
   const winningBets = Object.values(ranks).reduce((a,b)=>a+b,0);
   let knownAmount = 0, allAmountsKnown = winningBets > 0;
@@ -89,6 +94,31 @@ export function checkEntry(entry, draw) {
     else knownAmount += value * count;
   }
   return { ranks, matches, winningBets, additionalWinningBets: entry.additional ? (ranks[1] || 0) + (ranks[2] || 0) : 0, knownAmount, allAmountsKnown, total: planTotals(entry) };
+}
+
+function* selections(values, count, start = 0, prefix = []) {
+  if (!count) { yield prefix; return; }
+  for (let i = start; i <= values.length - count; i++) yield* selections(values, count - 1, i + 1, [...prefix, values[i]]);
+}
+
+// Generate only winning basic combinations, lazily. Large pools must not be
+// expanded in memory, and repeated stakes do not duplicate the displayed rows.
+export function* winningCombinations(entry, draw, selectedRank) {
+  if (!validateEntry(entry) || !validateDraw(entry.game,draw)) throw new Error('方案或开奖号码不合法');
+  const g=gameConfig(entry);
+  for(const [ticketIndex,ticket] of entry.tickets.entries()) {
+    const hitMain=ticket.main.filter(n=>draw.main.includes(n)), missMain=ticket.main.filter(n=>!draw.main.includes(n));
+    const hitExtra=ticket.extra.filter(n=>draw.extra.includes(n)), missExtra=ticket.extra.filter(n=>!draw.extra.includes(n));
+    for(let a=0;a<=g.mainK;a++)for(let b=0;b<=g.extraK;b++) {
+      const rank=prizeRank(entry.game,a,b,draw.issue,entry.pick);
+      if(!rank||(selectedRank!==undefined&&String(rank)!==String(selectedRank)))continue;
+      if(!choose(hitMain.length,a)||!choose(missMain.length,g.mainK-a)||!choose(hitExtra.length,b)||!choose(missExtra.length,g.extraK-b))continue;
+      for(const mainHits of selections(hitMain,a))for(const mainMisses of selections(missMain,g.mainK-a))
+        for(const extraHits of selections(hitExtra,b))for(const extraMisses of selections(missExtra,g.extraK-b)) {
+          yield { ticketIndex, rank, main:[...mainHits,...mainMisses].sort((x,y)=>x-y), extra:[...extraHits,...extraMisses].sort((x,y)=>x-y), multiplier:entry.multiplier };
+        }
+    }
+  }
 }
 export function statistics(draws, game, zone, limit = 50) {
   const cfg = GAMES[game], n = zone === 'main' ? cfg.mainN : cfg.extraN;
